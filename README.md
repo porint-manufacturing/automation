@@ -51,23 +51,37 @@ python inspector.py
 # レガシーアプリ向けモード
 python inspector.py --mode legacy
 
-# エイリアス定義用のCSVテンプレートを作成
+# エイリアス定義用のCSVテンプレートを作成（推奨）
 python inspector.py --output alias
 ```
 
 - 要素をクリックすると、その要素のRPAパスが生成されます。
+- `--output alias` を指定すると、`inspector_YYYYMMDD_HHMMSS_alias.csv` が生成されます。このファイルの `AliasName` 列に任意の名前（例: `Btn_Save`）を入力することで、アクション定義でその名前を使用できるようになります。
 - `ESC` キーで終了します。
 
 ### 2. アクションの定義
 
 `actions.csv` などのCSVファイルを作成し、自動化の手順を記述します。
 
-| TargetApp | Key                          | Action | Value |
-| :-------- | :--------------------------- | :----- | :---- |
-| 電卓      | ButtonControl(Name='5')      | Click  |       |
-| 電卓      | ButtonControl(Name='プラス') | Click  |       |
-| 電卓      | ButtonControl(Name='3')      | Click  |       |
-| 電卓      | ButtonControl(Name='等号')   | Click  |       |
+**通常の方法（RPAパスを直接記述）:**
+
+| TargetApp | Key                     | Action | Value |
+| :-------- | :---------------------- | :----- | :---- |
+| 電卓      | ButtonControl(Name='5') | Click  |       |
+
+**エイリアスを使用する方法（推奨）:**
+
+まず、Inspectorで生成したエイリアス定義ファイル（例: `aliases.csv`）を編集します。
+
+| AliasName | RPA_Path                |
+| :-------- | :---------------------- |
+| Btn_Five  | ButtonControl(Name='5') |
+
+次に、アクション定義ファイルでエイリアス名を使用します。
+
+| TargetApp | Key      | Action | Value |
+| :-------- | :------- | :----- | :---- |
+| 電卓      | Btn_Five | Click  |       |
 
 ### 3. 自動化の実行 (Automator)
 

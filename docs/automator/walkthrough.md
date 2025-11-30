@@ -16,7 +16,7 @@ CSV ファイルに記述された手順に従って操作を実行します。
 
 - **TargetApp**: 操作対象のアプリ名（ウィンドウ名の一部で OK）。例: `電卓`, `メモ帳`
 - **Key**: `inspector.py` で取得した `RPA_Path`。
-  - 例: `ButtonControl(Name='5')`
+  - 例: `WindowControl(Name='電卓') -> ButtonControl(Name='5')`
   - アプリ起動(`Launch`)や待機(`Wait`)の場合は空欄で OK。
 - **Action**:
   - `Launch`: アプリ起動 (`Value`にパス)
@@ -60,6 +60,30 @@ TargetApp,Key,Action,Value
 
 > [!TIP] > **フォーカスのコツ**: メモ帳などの一部のアプリでは、特定のコントロール（`DocumentControl`など）ではなく、ウィンドウ自体（`Key`を空にする）にフォーカスを当ててショートカットキー（`{Ctrl}v`など）を送信する方が確実な場合があります。また、`Click` アクションを使って明示的にクリックするのも有効です。
 
+### 2.2. エイリアスの利用 (推奨)
+
+長い `RPA_Path` を直接記述する代わりに、短い名前（エイリアス）を使用することで、CSV の可読性とメンテナンス性が向上します。
+
+1.  **エイリアス定義ファイル (`aliases.csv`) の作成**:
+    - `inspector.py --output alias` でテンプレートを作成するか、手動で作成します。
+    - フォーマット: `AliasName,RPA_Path`
+
+    ```csv
+    AliasName,RPA_Path
+    Btn_Calc_5,ButtonControl(Name='5')
+    Btn_Calc_Plus,ButtonControl(Name='プラス')
+    Result_Text,TextControl(AutomationId='CalculatorResults')
+    ```
+
+2.  **アクション定義ファイル (`actions.csv`) での使用**:
+    - `Key` カラムにエイリアス名を記述します。
+
+    ```csv
+    TargetApp,Key,Action,Value
+    電卓,Btn_Calc_5,Click,
+    電卓,Btn_Calc_Plus,Click,
+    ```
+
 ## 3. 実行
 
 PowerShell または コマンドプロンプトで実行します。
@@ -73,6 +97,9 @@ python automator.py
 
 # 別のCSVファイルを指定して実行
 python automator.py my_scenario.csv
+
+# エイリアスファイルを使用して実行 (推奨)
+python automator.py actions.csv --aliases aliases.csv
 ```
 
 ## 4. 注意点
