@@ -1,6 +1,7 @@
 *.csv
 reports/
 output.log
+@AutomationLog.txt
 __pycache__/
 .venv/
 .vscode/
