@@ -94,15 +94,41 @@ PowerShell または コマンドプロンプトで実行します。
 
 # デフォルトの actions.csv を実行
 python automator.py
+```
 
-# 別のCSVファイルを指定して実行
-python automator.py my_scenario.csv
+### 3.2. オプション
 
-# エイリアスファイルを使用して実行 (推奨)
+- `--aliases <file>`: エイリアス定義ファイルを指定します。
+- `--log-file <file>`: 実行ログをファイルに出力します。
+- `--log-level <level>`: ログレベルを指定します (`DEBUG`, `INFO`, `WARNING`, `ERROR`)。デフォルトは `INFO`。
+- `--dry-run`: 実際の操作を行わずに実行フローを確認します（副作用なし）。
+
+### 3.3. 実行例
+
+**基本実行**
+
+```bash
+python automator.py actions.csv
+```
+
+**エイリアスを使用**
+
+```bash
 python automator.py actions.csv --aliases aliases.csv
 ```
 
-## 4. 注意点
+**ログ出力とDry-run**
+
+```bash
+python automator.py actions.csv --aliases aliases.csv --log-file execution.log --log-level DEBUG --dry-run
+```
+
+## 4. エラーハンドリング
+
+実行中にエラーが発生した場合、`errors/` ディレクトリにスクリーンショットが自動的に保存されます。
+ログファイルを確認することで、詳細なエラー原因を特定できます。
+
+## 5. 注意点
 
 - **要素が見つからない場合**: アプリの起動待ち時間が足りない可能性があります。`Wait` を長めに設定してみてください。
 - **日本語入力**: `Input` アクションは、IME の状態によっては正しく入力されない場合があります。直接入力 (`SetValue`) を試みるか、クリップボード経由などを検討してください（現状は `SetValue` または `SendKeys` を使用）。

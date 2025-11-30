@@ -4,18 +4,39 @@ import time
 import subprocess
 import re
 import argparse
+import logging
+import os
+import datetime
 import uiautomation as auto
 
 class Automator:
-    def __init__(self):
+    def __init__(self, actions_file, log_file=None, log_level="INFO", dry_run=False):
         self.actions = []
         self.variables = {}
         self.aliases = {}
-
+        self.dry_run = dry_run
+        
+        # Configure logging
+        level = getattr(logging, log_level.upper(), logging.INFO)
+        handlers = [logging.StreamHandler(sys.stdout)]
+        if log_file:
+            handlers.append(logging.FileHandler(log_file, encoding='utf-8'))
+        
+        logging.basicConfig(
+            level=level,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=handlers,
+            force=True # Reconfigure if already configured
+        )
+        self.logger = logging.getLogger(__name__)
+        
+        self.csv_file = actions_file
+        if self.dry_run:
+            self.logger.info("=== DRY RUN MODE ENABLED ===")
 
     def load_aliases(self, alias_file):
         """Loads aliases from a CSV file."""
-        print(f"Loading aliases from {alias_file}...")
+        self.logger.info(f"Loading aliases from {alias_file}...")
         try:
             with open(alias_file, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
@@ -24,172 +45,212 @@ class Automator:
                     path = row.get("RPA_Path")
                     if alias and path:
                         if alias in self.aliases:
-                            print(f"Warning: Duplicate alias '{alias}' found. Overwriting.")
+                            self.logger.warning(f"Duplicate alias '{alias}' found. Overwriting.")
                         self.aliases[alias] = path
-            print(f"Loaded {len(self.aliases)} aliases.")
+            self.logger.info(f"Loaded {len(self.aliases)} aliases.")
         except Exception as e:
-            print(f"Error loading aliases: {e}")
+            self.logger.error(f"Error loading aliases: {e}")
             sys.exit(1)
 
-    def load_actions(self, csv_file):
-        print(f"Loading actions from {csv_file}...")
+    def load_actions(self):
+        self.logger.info(f"Loading actions from {self.csv_file}...")
         try:
-            with open(csv_file, 'r', encoding='utf-8-sig') as f:
+            with open(self.csv_file, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     # Resolve alias if present
-                    key = row.get("Key", "") # Use .get to handle missing 'Key' gracefully
-                    if key and key in self.aliases: # Check if key exists and is an alias
-                        print(f"  Resolved alias '{key}' -> '{self.aliases[key]}'")
+                    key = row.get("Key", "")
+                    if key and key in self.aliases:
+                        self.logger.debug(f"Resolved alias '{key}' -> '{self.aliases[key]}'")
                         row["Key"] = self.aliases[key]
                     
                     self.actions.append(row)
-            print(f"Loaded {len(self.actions)} actions.")
+            self.logger.info(f"Loaded {len(self.actions)} actions.")
         except FileNotFoundError:
-            print(f"Error: File not found: {csv_file}")
+            self.logger.error(f"File not found: {self.csv_file}")
             sys.exit(1)
         except Exception as e:
-            print(f"Error loading actions: {e}")
+            self.logger.error(f"Error loading actions: {e}")
             sys.exit(1)
 
     def run(self):
         for i, action in enumerate(self.actions):
-            print(f"\n--- Action {i+1} ---")
+            self.logger.info(f"--- Action {i+1} ---")
             target_app = action.get('TargetApp', '')
             key = action.get('Key', '')
             act_type = action.get('Action', '')
             value = action.get('Value', '')
 
-            # 変数置換 ({var_name} -> value)
+            # 変数置換
             if '{' in value and '}' in value:
                 for var_name, var_val in self.variables.items():
                     value = value.replace(f"{{{var_name}}}", str(var_val))
 
-            print(f"Target: {target_app}, Action: {act_type}, Value: {value}")
+            self.logger.info(f"Target: {target_app}, Action: {act_type}, Value: {value}")
             
             try:
                 self.execute_action(target_app, key, act_type, value)
             except Exception as e:
-                print(f"Action failed: {e}")
-                # Continue or stop? For now, let's stop on critical error or just print
+                self.logger.error(f"Action failed: {e}")
+                self.capture_screenshot(f"error_action_{i+1}")
                 # sys.exit(1)
 
+    def capture_screenshot(self, name_prefix):
+        """Captures a screenshot of the entire screen."""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would capture screenshot: {name_prefix}")
+            return
+
+        try:
+            if not os.path.exists("errors"):
+                os.makedirs("errors")
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"errors/{name_prefix}_{timestamp}.png"
+            
+            # Capture full screen
+            auto.GetRootControl().CaptureToImage(filename)
+            self.logger.info(f"Screenshot saved to: {filename}")
+        except Exception as e:
+            self.logger.error(f"Failed to capture screenshot: {e}")
+
     def execute_action(self, target_app, key, act_type, value):
-        # 1. Launch
         if act_type == "Launch":
-            print(f"Launching {value}...")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would launch: {value}")
+                return
+            self.logger.info(f"Launching {value}...")
             subprocess.Popen(value, shell=True)
             return
 
-        # 2. Wait
         if act_type == "Wait":
-            print(f"Waiting {value} seconds...")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait: {value} seconds")
+                return
+            self.logger.info(f"Waiting {value} seconds...")
             time.sleep(float(value))
             return
 
-        # 3. Find Window
         window = self.find_window(target_app)
         if not window:
+            if self.dry_run:
+                self.logger.warning(f"[Dry-run] Window '{target_app}' not found. Subsequent actions might fail.")
+                return
             raise Exception(f"Window '{target_app}' not found.")
 
-        # 4. Focus Window
         if act_type == "Focus":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would focus window: {target_app}")
+                return
             window.SetFocus()
             return
 
-        # 5. Find Element (if Key is provided)
         element = window
         if key:
             element = self.find_element_by_path(window, key)
             if not element:
+                if self.dry_run:
+                     self.logger.warning(f"[Dry-run] Element not found for key: {key}")
+                     return
                 raise Exception(f"Element not found for key: {key}")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Element found: {element.Name} ({element.ControlTypeName})")
 
-        # 6. Interact
         if act_type == "Click":
-            print(f"Clicking element '{element.Name}'...")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would click element: {element.Name}")
+                return
+            self.logger.info(f"Clicking element '{element.Name}'...")
             try:
                 invoke = element.GetPattern(auto.PatternId.InvokePattern)
                 if invoke:
-                    print("  Using InvokePattern...")
+                    self.logger.debug("Using InvokePattern...")
                     invoke.Invoke()
                 else:
                     element.Click()
             except Exception as e:
-                print(f"  Invoke failed, falling back to Click: {e}")
+                self.logger.warning(f"Invoke failed, falling back to Click: {e}")
                 element.Click()
+
         elif act_type == "GetValue":
-            # 値を取得して変数に保存
-            # ValuePatternがあればそれ、なければName
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would get value from element: {element.Name} and store in '{value}'")
+                self.variables[value] = "[DryRunValue]"
+                return
+
             val = element.Name
-            
-            # Try ValuePattern
             try:
                 pattern = element.GetPattern(auto.PatternId.ValuePattern)
                 if pattern:
                     val = pattern.Value
             except Exception as e:
-                print(f"Warning: Failed to get ValuePattern: {e}")
+                self.logger.warning(f"Failed to get ValuePattern: {e}")
 
-            # Try TextPattern if Value is empty or same as Name (heuristic)
             if not val or val == element.Name:
                 try:
                     pattern = element.GetPattern(auto.PatternId.TextPattern)
                     if pattern:
                         val = pattern.DocumentRange.GetText(-1)
                 except Exception as e:
-                    print(f"Warning: Failed to get TextPattern: {e}")
+                    self.logger.warning(f"Failed to get TextPattern: {e}")
             
-            print(f"Got value: '{val}'. Storing in variable '{value}'")
+            self.logger.info(f"Got value: '{val}'. Storing in variable '{value}'")
             self.variables[value] = val
 
         elif act_type == "Input":
-            print(f"Inputting text: {value}")
-            # Try to set value using ValuePattern first if applicable
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would input text '{value}' into element: {element.Name}")
+                return
+
+            self.logger.info(f"Inputting text: {value}")
             success = False
             if isinstance(element, (auto.EditControl, auto.DocumentControl)):
                 try:
-                    # Check if it supports ValuePattern
                     if element.GetPattern(auto.PatternId.ValuePattern):
                         element.SetValue(value)
                         success = True
                 except Exception as e:
-                    print(f"  SetValue failed: {e}")
+                    self.logger.warning(f"SetValue failed: {e}")
             
             if not success:
-                print("  Fallback to SendKeys...")
+                self.logger.debug("Fallback to SendKeys...")
                 element.SetFocus()
                 auto.SendKeys(value)
 
         elif act_type == "SendKeys":
-            print(f"Sending keys: {value}")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would send keys '{value}' to element: {element.Name}")
+                return
+
+            self.logger.info(f"Sending keys: {value}")
             element.SetFocus()
-            time.sleep(0.5) # Focus wait
+            time.sleep(0.5)
             auto.SendKeys(value)
 
         elif act_type == "SetClipboard":
-            # {ENTER} などのプレースホルダーを置換
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would set clipboard to: {value}")
+                return
+
             text_to_copy = value.replace("{ENTER}", "\r\n")
-            print(f"Setting clipboard: {text_to_copy}")
+            self.logger.info(f"Setting clipboard: {text_to_copy}")
             auto.SetClipboardText(text_to_copy)
 
         elif act_type == "GetClipboard":
-            # クリップボードからテキストを取得して変数に保存
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would get clipboard text and store in '{value}'")
+                self.variables[value] = "[DryRunClipboard]"
+                return
+
             val = auto.GetClipboardText()
-            print(f"Got clipboard text: '{val}'. Storing in variable '{value}'")
+            self.logger.info(f"Got clipboard text: '{val}'. Storing in variable '{value}'")
             self.variables[value] = val
 
         elif act_type == "VerifyValue":
-            # 値を取得して比較
-            # Valueが {var_name} の場合は変数の値と比較
-            expected_val = value
-            if '{' in value and '}' in value:
-                 # 簡易的な変数展開（完全一致のみ対応）
-                 # Inputのような部分置換ではなく、値そのものが変数参照である場合を想定
-                 # しかし、今回は "Formula: ..." という文字列と比較したいので、
-                 # execute_actionに来る前に run() で既に置換されているはず。
-                 pass
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would verify value of element: {element.Name} against '{value}'")
+                return
 
-            # 要素の値を取得（Name, ValuePattern, TextPattern）
             current_val = element.Name
             try:
                 pattern = element.GetPattern(auto.PatternId.ValuePattern)
@@ -206,80 +267,67 @@ class Automator:
                 except Exception:
                     pass
             
-            # もし要素が見つからない/値がない場合でも、変数の値と比較したい場合があるかも？
-            # 今回は "GetClipboard" で変数に入れた値と比較したい。
-            # その場合、VerifyValueのターゲットは要素ではなく "Variable" になるべきだが、
-            # CSVフォーマット上 Key が必須。
-            # そこで、Keyが空の場合は「変数同士の比較」または「変数と値の比較」とするロジックを追加。
-            
             if not key:
-                # Keyがない場合、TargetAppも無視して、Valueを "Actual == Expected" の形式でパースするか、
-                # あるいは "VerifyVariable" アクションを作るか。
-                # ここでは既存の VerifyValue を拡張し、Keyが空なら Value を "VarName==Expected" とみなす...のは複雑。
-                # シンプルに、Keyが空なら "Value" は "変数名" とし、その変数の値と... 何を比較する？
-                # CSVのValueカラムは1つしかない。
                 pass
 
-            print(f"Verifying value: Expected='{value}', Actual='{current_val}'")
+            self.logger.info(f"Verifying value: Expected='{value}', Actual='{current_val}'")
             if current_val != value:
                 raise Exception(f"Verification failed! Expected '{value}' but got '{current_val}'")
-            print("Verification passed.")
+            self.logger.info("Verification passed.")
 
         elif act_type == "VerifyVariable":
-            # 変数の値を検証
-            # Valueは "VarName==ExpectedValue" の形式を想定、あるいは
-            # CSVの制約上、Valueには "ExpectedValue" を入れ、Keyに "VarName" を入れるなどの工夫が必要。
-            # ここでは Key を変数名、Value を期待値として扱う。
-            var_name = key # Keyカラムを変数名として利用
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would verify variable '{key}' against '{value}'")
+                return
+
+            var_name = key
             expected_val = value
-            
             actual_val = self.variables.get(var_name, '')
-            print(f"Verifying variable '{var_name}':")
-            print(f"  Expected: {repr(expected_val)}")
-            print(f"  Actual  : {repr(actual_val)}")
+            self.logger.info(f"Verifying variable '{var_name}': Expected='{expected_val}', Actual='{actual_val}'")
             
-            # CSVからの読み込みで \r\n が文字として入っている場合の対応
             expected_normalized = expected_val.replace('\\r', '\r').replace('\\n', '\n')
             actual_normalized = str(actual_val).replace('\r\n', '\n')
             expected_normalized = expected_normalized.replace('\r\n', '\n')
 
             if expected_normalized != actual_normalized:
                  raise Exception(f"Verification failed! Expected '{expected_normalized}' but got '{actual_normalized}'")
-            print("Verification passed.")
+            self.logger.info("Verification passed.")
 
         elif act_type == "Paste":
-            print("Pasting from clipboard...")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would paste from clipboard to element: {element.Name}")
+                return
+
+            self.logger.info("Pasting from clipboard...")
             element.SetFocus()
             time.sleep(0.5)
             auto.SendKeys('{Ctrl}v')
 
         elif act_type == "Exit":
-            print(f"Exiting {target_app}...")
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would exit window: {target_app}")
+                return
+
+            self.logger.info(f"Exiting {target_app}...")
             try:
-                # Try WindowPattern Close
                 pattern = window.GetPattern(auto.PatternId.WindowPattern)
                 if pattern:
                     pattern.Close()
                 else:
-                    # Fallback to Alt+F4
                     window.SetFocus()
                     auto.SendKeys('{Alt}{F4}')
             except Exception as e:
-                print(f"Failed to exit window: {e}")
+                self.logger.error(f"Failed to exit window: {e}")
 
         else:
-            print(f"Unknown action: {act_type}")
+            self.logger.warning(f"Unknown action: {act_type}")
 
     def find_window(self, target_app):
-        # Try to find by Name (partial match) or ClassName
-        # Root is Desktop
-        print(f"Searching for window '{target_app}'...")
-        # First try exact name
+        self.logger.debug(f"Searching for window '{target_app}'...")
         win = auto.WindowControl(searchDepth=1, Name=target_app)
         if win.Exists(maxSearchSeconds=1):
             return win
         
-        # Try regex/partial
         win = auto.WindowControl(searchDepth=1, RegexName=f".*{target_app}.*")
         if win.Exists(maxSearchSeconds=1):
             return win
@@ -287,9 +335,6 @@ class Automator:
         return None
 
     def find_element_by_path(self, root, path_string):
-        """
-        Parses the path string like "ControlTypeName(Prop='Val') -> ..." and traverses the tree.
-        """
         parts = [p.strip() for p in path_string.split('->')]
         current = root
         
@@ -297,18 +342,16 @@ class Automator:
             if not part:
                 continue
             
-            # Parse "Type(Prop='Val', ...)"
             match = re.match(r"(\w+)(?:\((.*)\))?", part)
             if not match:
-                print(f"Invalid path part format: {part}")
+                self.logger.error(f"Invalid path part format: {part}")
                 return None
             
             control_type = match.group(1)
             props_str = match.group(2)
             
-            # Search params
             search_params = {"ControlTypeName": control_type}
-            found_index = 1 # Default to 1st match
+            found_index = 1
 
             if props_str:
                 name_match = re.search(r"\bName='([^']*)'", props_str)
@@ -328,17 +371,7 @@ class Automator:
                 if depth_match:
                     search_params["searchDepth"] = int(depth_match.group(1))
 
-            print(f"  Searching descendant: {search_params} (Index: {found_index}) under {current.Name}...")
-            
-            # Use uiautomation's search capability
-            # searchDepth=0xFFFFFFFF means search all descendants
-            # foundIndex support: GetChildren or FindAll is needed if index > 1, 
-            # but uiautomation's Control() method usually returns the first match.
-            # To support foundIndex, we might need to use GetChildren or FindAll if foundIndex > 1.
-            # However, recursive search with index is tricky.
-            # uiautomation supports `foundIndex` argument in GetFirstChild/GetLastChild but not directly in Control() for recursive?
-            # Actually Control() has `foundIndex` parameter! Let's check signature.
-            # Control(self, searchFromControl=None, searchDepth=0xFFFFFFFF, searchInterval=0.0, foundIndex=1, ... )
+            self.logger.debug(f"Searching descendant: {search_params} (Index: {found_index}) under {current.Name}...")
             
             target = current.Control(
                 foundIndex=found_index,
@@ -346,7 +379,7 @@ class Automator:
             )
             
             if not target.Exists(maxSearchSeconds=2):
-                print(f"  Not found: {part}")
+                self.logger.warning(f"Not found: {part}")
                 return None
             
             current = target
@@ -354,10 +387,19 @@ class Automator:
         return current
 
 if __name__ == "__main__":
-    csv_file = "actions.csv"
-    if len(sys.argv) > 1:
-        csv_file = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Automator: Execute UI automation from CSV.")
+    parser.add_argument("csv_file", nargs='?', default="actions.csv", help="Path to the actions CSV file.")
+    parser.add_argument("--aliases", help="Path to the aliases CSV file.")
+    parser.add_argument("--log-file", help="Path to the log file.")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level.")
+    parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no side effects).")
     
-    app = Automator(csv_file)
+    args = parser.parse_args()
+    
+    app = Automator(args.csv_file, log_file=args.log_file, log_level=args.log_level, dry_run=args.dry_run)
+    
+    if args.aliases:
+        app.load_aliases(args.aliases)
+        
     app.load_actions()
     app.run()
