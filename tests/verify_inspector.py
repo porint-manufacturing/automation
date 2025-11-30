@@ -1,6 +1,9 @@
 import subprocess
 import time
 import uiautomation as auto
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from inspector import Inspector
 
 def verify_inspector_logic():

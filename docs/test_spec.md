@@ -45,12 +45,72 @@
   - `errors/` ディレクトリに新しい `.png` ファイルが生成されること。
   - スクリプトが "Screenshot Verification: PASS" を出力して終了すること。
 
+### 2.4. 既存機能の検証
+
+以下のスクリプトは、以前の実装フェーズで作成された機能検証用です。
+
+#### 2.4.1. エイリアス機能の検証 (`tests/verify_alias_feature.py`)
+
+- **目的**: Inspectorによるエイリアス定義ファイルの出力と、Automatorによるエイリアスの読み込み・解決を検証する。
+- **テスト内容**:
+  - **Inspector**: ダミーの記録データをセットし、`--output alias` モードでCSVが出力されるか確認。
+  - **Automator**: ダミーのエイリアス定義とアクション定義を作成し、アクション実行時にエイリアスが正しいRPAパスに置換されるか確認。
+- **期待される結果**:
+  - Inspector: `inspector_YYYYMMDD_..._alias.csv` が生成され、正しいカラムを持つこと。
+  - Automator: アクションの `Key` がエイリアス定義の内容に置き換わっていること。
+
+#### 2.4.2. 階層化パスの検証 (`tests/verify_automator_chained_path.py`)
+
+- **目的**: `Parent -> Child` 形式の階層化されたRPAパスを `automator.py` が正しく解析し、要素を特定できるか検証する。
+- **テスト内容**:
+  - メモ帳を起動。
+  - `Window -> Pane -> Document` のような階層化パスを手動で構築。
+  - `automator.find_element_by_path` を呼び出し、要素が見つかるか確認。
+- **期待される結果**:
+  - 指定した階層化パスで要素が正しく特定されること（Result: Found）。
+
+#### 2.4.3. Inspector基本ロジックの検証 (`tests/verify_inspector.py`)
+
+- **目的**: `inspector.py` が実際のアプリ（電卓）から適切なRPAパスを生成できるか検証する。
+- **テスト内容**:
+  - 電卓を起動。
+  - ボタン「5」やメニューボタンを対象に `get_rpa_path` を実行。
+- **期待される結果**:
+  - 生成されたパスに `ClassName` や `foundIndex`、または `AutomationId` が適切に含まれていること。
+
+#### 2.4.4. Inspectorモードの検証 (`tests/verify_inspector_modes.py`)
+
+- **目的**: `modern` モードと `legacy` モードで生成されるパスの違いを検証する。
+- **テスト内容**:
+  - メモ帳を起動。
+  - **Modern**: `Name` や `AutomationId` を優先したパスが生成されるか確認。
+  - **Legacy**: `ClassName` と `foundIndex` を使用したパスが生成されるか確認。
+- **期待される結果**:
+  - 各モードのポリシーに従ったパスが生成されること。
+
+#### 2.4.5. Inspector出力の検証 (`tests/verify_inspector_output.py`)
+
+- **目的**: CSVファイル出力とクリップボード出力が正しく機能するか検証する。
+- **テスト内容**:
+  - ダミーデータをセットし、`output="csv"` と `output="clipboard"` を実行。
+- **期待される結果**:
+  - CSVファイルが生成されること。
+  - クリップボードにCSV形式の文字列がコピーされること。
+
 ## 3. テスト実行方法
 
 以下のコマンドですべての検証スクリプトを実行できます。
 
 ```bash
+# 新機能の検証
 python tests/verify_logging.py
 python tests/verify_dry_run.py
 python tests/verify_screenshot.py
+
+# 既存機能の検証
+python tests/verify_alias_feature.py
+python tests/verify_automator_chained_path.py
+python tests/verify_inspector.py
+python tests/verify_inspector_modes.py
+python tests/verify_inspector_output.py
 ```

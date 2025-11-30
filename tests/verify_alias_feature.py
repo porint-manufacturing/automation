@@ -54,9 +54,9 @@ def verify_automator_alias_execution():
         writer.writerow({"TargetApp": "Test", "Key": "MyAlias", "Action": "Wait", "Value": "0"})
         
     # Initialize Automator and load
-    automator = Automator()
+    automator = Automator(actions_file)
     automator.load_aliases(alias_file)
-    automator.load_actions(actions_file)
+    automator.load_actions()
     
     # Check if alias was resolved in loaded actions
     # automator.actions is a list of dicts

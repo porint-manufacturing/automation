@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from automator import Automator
 
 def verify_chained_path():
-    automator = Automator()
+    automator = Automator("dummy.csv")
     print(f"DEBUG: Automator type: {type(automator)}")
     print(f"DEBUG: Automator dir: {dir(automator)}")
     
@@ -62,7 +62,10 @@ def verify_chained_path():
     e3 = automator.find_element_by_path(notepad, path3)
     print(f"Result: {'Found' if e3 else 'Not Found'}")
 
-    notepad.Close()
+    try:
+        notepad.GetWindowPattern().Close()
+    except:
+        pass
 
 if __name__ == "__main__":
     verify_chained_path()
