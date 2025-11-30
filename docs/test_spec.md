@@ -109,6 +109,25 @@
 - **期待される結果**:
   - 日本語エイリアスが文字化けせずに読み込まれ、対応するRPAパスに置換されること。
 
+#### 2.5.2. 待機アクションの検証 (`tests/verify_wait_actions.py`)
+
+- **目的**: `WaitUntilVisible`, `WaitUntilEnabled` アクションが正しく動作することを検証する。
+- **テスト内容**:
+  - メモ帳を起動。
+  - `WaitUntilVisible` でテキストエリアが表示されるのを待つ。
+  - `WaitUntilEnabled` でテキストエリアが有効になるのを待つ。
+- **期待される結果**:
+  - タイムアウトエラーにならずにアクションが完了し、"WaitUntil Actions Verification: PASS" が出力されること。
+
+#### 2.5.3. 対話型Inspectorの検証 (`tests/verify_interactive_alias.py`)
+
+- **目的**: Inspectorの対話型エイリアスモード (`interactive_alias`) のロジックを検証する。
+- **テスト内容**:
+  - `builtins.input` と `wait_for_click` をモック化。
+  - エイリアス名入力 -> クリック -> 記録 のフローが正しく実行されるか確認。
+- **期待される結果**:
+  - 記録されたアイテム数が一致し、エイリアス名とパスが正しく保持されていること。
+
 ## 3. テスト実行方法
 
 以下のコマンドですべての検証スクリプトを実行できます。

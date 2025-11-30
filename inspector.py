@@ -141,6 +141,50 @@ class Inspector:
 
     def run(self):
         print("UI Inspector started.")
+        
+        if self.output == "interactive_alias":
+            self.run_interactive()
+        else:
+            self.run_normal()
+
+        self.finalize()
+
+    def run_interactive(self):
+        print("Interactive Alias Mode")
+        print("Type the alias name and press Enter, then click the target element.")
+        print("Type 'q' or 'exit' to finish.")
+        print("-" * 50)
+
+        while True:
+            try:
+                alias_name = input("\n[Interactive] Enter Alias Name (or 'q' to finish): ").strip()
+            except EOFError:
+                break
+                
+            if alias_name.lower() in ['q', 'exit']:
+                break
+            
+            if not alias_name:
+                print("  >> Name cannot be empty.")
+                continue
+
+            print(f"  >> Click the element for '{alias_name}' (Press ESC to cancel this item)...")
+            
+            result = self.wait_for_click()
+            if not result:
+                print("  >> Cancelled.")
+                continue
+            
+            control, x, y = result
+            path = self.get_rpa_path(control)
+            print(f"  >> Captured: {path}")
+            
+            self.recorded_items.append({
+                "AliasName": alias_name,
+                "RPA_Path": path
+            })
+
+    def run_normal(self):
         print("Hover over an element and CLICK (Left Click) to inspect/record.")
         print("Press 'ESC' to finish and output.")
         print("-" * 50)
@@ -170,7 +214,21 @@ class Inspector:
                 last_element = None 
                 time.sleep(0.05)
 
-        self.finalize()
+    def wait_for_click(self):
+        """Waits for a left click and returns (control, x, y). Returns None if ESC is pressed."""
+        while True:
+            if keyboard.is_pressed('esc'):
+                return None
+            
+            if ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
+                x, y = auto.GetCursorPos()
+                control = auto.ControlFromPoint(x, y)
+                # Wait for release to avoid multiple registrations
+                while ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
+                    time.sleep(0.05)
+                return control, x, y
+            
+            time.sleep(0.05)
 
     def inspect_element(self, control, x, y):
         print(f"\n[Clicked at {x}, {y}] Inspecting...")
@@ -227,21 +285,29 @@ class Inspector:
             auto.SetClipboardText(csv_content)
             print("Copied CSV content to clipboard.")
 
-        elif self.output == "alias":
+        elif self.output in ["alias", "interactive_alias"]:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"inspector_{timestamp}_alias.csv"
             with open(filename, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.DictWriter(f, fieldnames=["AliasName", "RPA_Path"])
                 writer.writeheader()
-                # Transform recorded items to alias format
-                alias_items = [{"AliasName": "", "RPA_Path": item["Key"]} for item in self.recorded_items]
+                
+                alias_items = []
+                for item in self.recorded_items:
+                    if "AliasName" in item:
+                        # Interactive mode item
+                        alias_items.append(item)
+                    else:
+                        # Normal mode item (convert Key to RPA_Path)
+                        alias_items.append({"AliasName": "", "RPA_Path": item["Key"]})
+                
                 writer.writerows(alias_items)
             print(f"Saved alias definition to {filename}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="UI Inspector for Automator")
     parser.add_argument("--mode", choices=["modern", "legacy"], default="modern", help="Inspection mode")
-    parser.add_argument("--output", choices=["normal", "csv", "clipboard", "alias"], default="clipboard", help="Output mode")
+    parser.add_argument("--output", choices=["normal", "csv", "clipboard", "alias", "interactive_alias"], default="clipboard", help="Output mode")
     
     args = parser.parse_args()
     

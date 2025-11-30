@@ -267,13 +267,87 @@ class Automator:
                 except Exception:
                     pass
             
-            if not key:
+            # The original code had an empty 'if not key: pass' block here.
+            # The new code replaces the verification logic from here.
+            
+            # New verification logic for VerifyValue
+            current_val = element.Name # This line seems redundant if current_val was already set above
+            try:
+                pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                if pattern:
+                    current_val = pattern.Value
+            except:
                 pass
+                
+            if current_val == value:
+                self.logger.info(f"Verification PASSED: Value is '{current_val}'")
+            else:
+                self.logger.error(f"Verification FAILED: Expected '{value}', got '{current_val}'")
+                raise Exception(f"Verification failed. Expected '{value}', got '{current_val}'")
 
-            self.logger.info(f"Verifying value: Expected='{value}', Actual='{current_val}'")
-            if current_val != value:
-                raise Exception(f"Verification failed! Expected '{value}' but got '{current_val}'")
-            self.logger.info("Verification passed.")
+        elif act_type == "WaitUntilVisible":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is visible: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until visible: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # Use a custom find method or just try/except with find_element_by_path
+                # Since find_element_by_path logs errors/warnings, we might want to suppress them here or just accept them.
+                # To avoid spamming logs, we can check existence manually or modify find_element_by_path.
+                # For simplicity, let's just try to find it.
+                try:
+                    # We need to find the element dynamically each time
+                    found = self.find_element_by_path(window, key)
+                    if found and found.Exists(maxSearchSeconds=0):
+                        self.logger.info(f"Element became visible.")
+                        return
+                except:
+                    pass
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be visible: {key}")
+
+        elif act_type == "WaitUntilEnabled":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is enabled: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until enabled: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    found = self.find_element_by_path(window, key)
+                    if found and found.Exists(maxSearchSeconds=0) and found.IsEnabled:
+                        self.logger.info(f"Element became enabled.")
+                        return
+                except:
+                    pass
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be enabled: {key}")
+
+        elif act_type == "WaitUntilGone":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is gone: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until gone: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    found = self.find_element_by_path(window, key)
+                    if not found or not found.Exists(maxSearchSeconds=0):
+                        self.logger.info(f"Element is gone.")
+                        return
+                except:
+                    # If find raises exception (e.g. parent gone), then it's gone
+                    self.logger.info(f"Element is gone (exception).")
+                    return
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be gone: {key}")
 
         elif act_type == "VerifyVariable":
             if self.dry_run:
