@@ -202,3 +202,42 @@ python automator.py actions.csv --aliases aliases.csv --log-file execution.log -
 
 - **要素が見つからない場合**: アプリの起動待ち時間が足りない可能性があります。`Wait` を長めに設定してみてください。
 - **日本語入力**: `Input` アクションは、IME の状態によっては正しく入力されない場合があります。直接入力 (`SetValue`) を試みるか、クリップボード経由などを検討してください（現状は `SetValue` または `SendKeys` を使用）。
+
+## 6. 付録: SendKeys 特殊キー一覧
+
+`SendKeys` アクションで使用できる特殊キーの記述方法一覧です。`{}` で囲んで指定します。
+
+| カテゴリ           | キー記述                      | 説明                                      |
+| :----------------- | :---------------------------- | :---------------------------------------- |
+| **修飾キー**       | `{Ctrl}`                      | Control キー                              |
+|                    | `{Alt}`                       | Alt キー                                  |
+|                    | `{Shift}`                     | Shift キー                                |
+|                    | `{Win}`                       | Windows キー                              |
+| **移動**           | `{Up}`                        | 上矢印 (↑)                                |
+|                    | `{Down}`                      | 下矢印 (↓)                                |
+|                    | `{Left}`                      | 左矢印 (←)                                |
+|                    | `{Right}`                     | 右矢印 (→)                                |
+|                    | `{Home}`                      | Home                                      |
+|                    | `{End}`                       | End                                       |
+|                    | `{PageUp}`                    | Page Up                                   |
+|                    | `{PageDown}`                  | Page Down                                 |
+| **編集・操作**     | `{Enter}`                     | Enter                                     |
+|                    | `{Esc}`                       | Esc                                       |
+|                    | `{Tab}`                       | Tab                                       |
+|                    | `{Space}`                     | Space                                     |
+|                    | `{Back}` または `{Backspace}` | Backspace                                 |
+|                    | `{Del}` または `{Delete}`     | Delete                                    |
+|                    | `{Ins}` または `{Insert}`     | Insert                                    |
+| **ファンクション** | `{F1}` ～ `{F12}`             | F1 ～ F12                                 |
+| **その他**         | `{PrintScreen}`               | Print Screen                              |
+|                    | `{Apps}`                      | アプリケーションキー (右クリックメニュー) |
+|                    | `{NumLock}`                   | Num Lock                                  |
+|                    | `{CapsLock}`                  | Caps Lock                                 |
+|                    | `{ScrollLock}`                | Scroll Lock                               |
+
+**組み合わせ例:**
+
+- `{Ctrl}c`: コピー (Ctrl + C)
+- `{Ctrl}v`: 貼り付け (Ctrl + V)
+- `{Alt}{Tab}`: アプリ切り替え
+- `{Win}r`: 「ファイル名を指定して実行」を開く
