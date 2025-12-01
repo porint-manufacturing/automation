@@ -309,6 +309,13 @@ class Automator:
                 time.sleep(0.5)
             raise Exception(f"Timeout waiting for element to be visible: {key}")
 
+        elif act_type == "FocusElement":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would focus element: {element.Name}")
+                return
+            self.logger.info(f"Focusing element '{element.Name}'...")
+            element.SetFocus()
+
         elif act_type == "WaitUntilEnabled":
             timeout = float(value) if value else 10.0
             if self.dry_run:
