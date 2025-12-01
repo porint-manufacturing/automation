@@ -55,7 +55,7 @@ python inspector.py --mode legacy
 # エイリアス定義用のCSVテンプレートを作成（推奨）
 python inspector.py --output alias
 
-# 対話形式でエイリアスを作成（New!）
+# 対話形式でエイリアスを作成
 python inspector.py --output interactive_alias
 ```
 

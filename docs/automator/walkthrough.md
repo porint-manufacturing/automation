@@ -181,7 +181,7 @@ python automator.py
 python automator.py actions.csv
 ```
 
-**複数ファイルを指定して実行 (New!)**
+**複数ファイルを指定して実行**
 
 セットアップ、メイン処理、ティアダウンなどを分割して管理できます。指定した順序で結合されて実行されます。
 
@@ -195,7 +195,7 @@ python automator.py setup.csv main.csv teardown.csv
 python automator.py actions.csv --aliases aliases.csv
 ```
 
-**複数のエイリアスファイルを指定 (New!)**
+**複数のエイリアスファイルを指定**
 
 共通エイリアスとプロジェクト固有エイリアスなどをマージできます。後から指定したファイルの定義が優先されます。
 

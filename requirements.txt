@@ -1,2 +1,2 @@
 uiautomation
-pynput
+keyboard
