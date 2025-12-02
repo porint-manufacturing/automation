@@ -97,7 +97,7 @@
   - CSVファイルが生成されること。
   - クリップボードにCSV形式の文字列がコピーされること。
 
-### 2.5. 多言語サポートの検証
+### 2.5. 追加機能の検証
 
 #### 2.5.1. 日本語エイリアスの検証 (`tests/verify_japanese_alias.py`)
 
@@ -169,6 +169,11 @@ python tests/verify_logging.py
 python tests/verify_dry_run.py
 python tests/verify_screenshot.py
 python tests/verify_japanese_alias.py
+python tests/verify_wait_actions.py
+python tests/verify_interactive_alias.py
+python tests/verify_focus_element.py
+python tests/verify_multi_csv.py
+python tests/verify_control_flow.py
 
 # 既存機能の検証
 python tests/verify_alias_feature.py
