@@ -8,6 +8,9 @@ import sys
 import io
 import ctypes
 
+# Enable High DPI Awareness to ensure correct coordinates
+auto.SetHighDpiAware()
+
 class Inspector:
     def __init__(self, mode="modern", output="clipboard"):
         self.mode = mode
