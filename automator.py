@@ -647,11 +647,28 @@ class Automator:
 
     def find_window(self, target_app):
         self.logger.debug(f"Searching for window '{target_app}'...")
+        
+        # Explicit Regex Mode
+        if target_app.startswith("regex:"):
+            pattern = target_app[6:] # Strip 'regex:'
+            self.logger.debug(f"Using regex pattern: {pattern}")
+            win = auto.WindowControl(searchDepth=1, RegexName=pattern)
+            if win.Exists(maxSearchSeconds=1):
+                return win
+            return None
+
+        # Standard Mode (Exact match first, then partial regex fallback)
         win = auto.WindowControl(searchDepth=1, Name=target_app)
         if win.Exists(maxSearchSeconds=1):
             return win
         
-        win = auto.WindowControl(searchDepth=1, RegexName=f".*{target_app}.*")
+        # Fallback: Partial match using RegexName
+        # Note: This might be risky if target_app contains regex special chars, 
+        # but it's the existing behavior for "partial match".
+        # Ideally we should escape it, but for backward compatibility we keep it simple or escape.
+        # Let's escape it to be safe for "partial match" logic if it wasn't intended as regex.
+        safe_name = re.escape(target_app)
+        win = auto.WindowControl(searchDepth=1, RegexName=f".*{safe_name}.*")
         if win.Exists(maxSearchSeconds=1):
             return win
             
@@ -678,6 +695,7 @@ class Automator:
 
             if props_str:
                 name_match = re.search(r"\bName='([^']*)'", props_str)
+                regex_name_match = re.search(r"\bRegexName='([^']*)'", props_str)
                 id_match = re.search(r"\bAutomationId='([^']*)'", props_str)
                 class_match = re.search(r"\bClassName='([^']*)'", props_str)
                 index_match = re.search(r"\bfoundIndex=(\d+)", props_str)
@@ -685,6 +703,8 @@ class Automator:
                 
                 if name_match:
                     search_params["Name"] = name_match.group(1)
+                if regex_name_match:
+                    search_params["RegexName"] = regex_name_match.group(1)
                 if id_match:
                     search_params["AutomationId"] = id_match.group(1)
                 if class_match:

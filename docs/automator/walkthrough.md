@@ -14,9 +14,12 @@ CSV ファイルに記述された手順に従って操作を実行します。
 **フォーマット:**
 `TargetApp,Key,Action,Value`
 
-- **TargetApp**: 操作対象のアプリ名（ウィンドウ名の一部で OK）。例: `電卓`, `メモ帳`
+- **TargetApp**: 操作対象のアプリ名（ウィンドウ名の一部で OK）。
+  - 例: `電卓`, `メモ帳`
+  - **正規表現**: `regex:` 接頭辞を付けると正規表現として扱われます。例: `regex:^日報 \d{4}-\d{2}-\d{2}$`
 - **Key**: `inspector.py` で取得した `RPA_Path`。
   - 例: `WindowControl(Name='電卓') -> ButtonControl(Name='5')`
+  - **正規表現**: `RegexName` プロパティを使用可能。例: `WindowControl(RegexName='.*日報.*')`
   - アプリ起動(`Launch`)や待機(`Wait`)の場合は空欄で OK。
 - **Action**:
   - `Launch`: アプリ起動 (`Value`にパス)

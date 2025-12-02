@@ -159,6 +159,16 @@
 - **期待される結果**:
   - ログに変数の値変化や分岐の実行結果が正しく記録され、"Control Flow Verification: PASS" が出力されること。
 
+#### 2.5.7. 正規表現マッチングの検証 (`tests/verify_regex_match.py`)
+
+- **目的**: `TargetApp` の `regex:` 接頭辞および `RPA_Path` 内の `RegexName` プロパティによる正規表現マッチングを検証する。
+- **テスト内容**:
+  - メモ帳を起動。
+  - `TargetApp` に `regex:.*(メモ帳|Notepad).*` を指定してウィンドウを特定。
+  - `Key` に `RegexName='.*(Editor|エディター).*'` を指定して要素を特定。
+- **期待される結果**:
+  - 正規表現を使用したウィンドウおよび要素の特定に成功し、"Regex Verification: PASS" が出力されること。
+
 ## 3. テスト実行方法
 
 以下のコマンドですべての検証スクリプトを実行できます。
@@ -173,7 +183,9 @@ python tests/verify_wait_actions.py
 python tests/verify_interactive_alias.py
 python tests/verify_focus_element.py
 python tests/verify_multi_csv.py
+python tests/verify_multi_csv.py
 python tests/verify_control_flow.py
+python tests/verify_regex_match.py
 
 # 既存機能の検証
 python tests/verify_alias_feature.py
