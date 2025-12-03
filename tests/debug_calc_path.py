@@ -20,15 +20,15 @@ def debug_calc_path():
 
     print(f"Window found: {win.Name} (ClassName: {win.ClassName})")
     
-    # Try to find NavView at depth 1
+    # Try to find NavView at depth 1 (should fail)
     print("Searching for NavView at depth 1...")
     nav_view = win.CustomControl(searchDepth=1, AutomationId='NavView')
     if nav_view.Exists(maxSearchSeconds=1):
-        print("PASS: NavView found at depth 1.")
+        print("FAIL: NavView found at depth 1 (unexpected).")
     else:
-        print("FAIL: NavView NOT found at depth 1.")
+        print("PASS: NavView NOT found at depth 1 (expected).")
         
-        # Try deeper search
+        # Try depth 2 (should succeed)
         print("Searching for NavView at depth 2...")
         nav_view = win.CustomControl(searchDepth=2, AutomationId='NavView')
         if nav_view.Exists(maxSearchSeconds=1):
@@ -36,15 +36,13 @@ def debug_calc_path():
         else:
             print("FAIL: NavView NOT found at depth 2.")
             
-            # Try recursive
-            print("Searching for NavView recursively...")
-            nav_view = win.CustomControl(AutomationId='NavView')
-            if nav_view.Exists(maxSearchSeconds=1):
-                print("PASS: NavView found recursively.")
-                # Check actual depth
-                # We can't easily check depth without walking up, but we know it's > 2
-            else:
-                print("FAIL: NavView NOT found recursively.")
+        # Try recursive (should succeed)
+        print("Searching for NavView recursively...")
+        nav_view = win.CustomControl(AutomationId='NavView')
+        if nav_view.Exists(maxSearchSeconds=1):
+            print("PASS: NavView found recursively.")
+        else:
+            print("FAIL: NavView NOT found recursively.")
 
 if __name__ == "__main__":
     auto.SetProcessDpiAwareness(2)

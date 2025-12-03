@@ -151,6 +151,8 @@ class Automator:
             key = action.get('Key', '')
             act_type = action.get('Action', '')
             value = action.get('Value', '')
+            if value is None:
+                value = ""
 
             # Variable substitution for Value (except for control flow which handles it specifically)
             if act_type not in ['If', 'Loop', 'SetVariable']:
@@ -749,6 +751,17 @@ class Automator:
                     **search_params
                 )
 
+            if not target.Exists(maxSearchSeconds=1):
+                # Fallback 2: Try recursive search (ignore depth)
+                self.logger.warning(f"Element not found at depth {current_depth + 1}. Trying recursive search...")
+                if "searchDepth" in search_params:
+                    del search_params["searchDepth"]
+                
+                target = current.Control(
+                    foundIndex=found_index,
+                    **search_params
+                )
+                
             if not target.Exists(maxSearchSeconds=1):
                 self.logger.warning(f"Not found: {part}")
                 return None
