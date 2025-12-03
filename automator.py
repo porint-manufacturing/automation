@@ -16,12 +16,13 @@ except Exception:
     pass # Ignore if not supported (e.g. older Windows)
 
 class Automator:
-    def __init__(self, action_files, log_file=None, log_level="INFO", dry_run=False, force_run=False):
+    def __init__(self, action_files, log_file=None, log_level="INFO", dry_run=False, force_run=False, wait_time=None):
         self.actions = []
         self.variables = {}
         self.aliases = {}
         self.dry_run = dry_run
         self.force_run = force_run
+        self.wait_time = wait_time  # None means use library default
         
         # Configure logging
         level = getattr(logging, log_level.upper(), logging.INFO)
@@ -394,11 +395,19 @@ class Automator:
                 if invoke:
                     self.logger.debug("Using InvokePattern...")
                     invoke.Invoke()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
                 else:
-                    element.Click()
+                    if self.wait_time is not None:
+                        element.Click(waitTime=self.wait_time)
+                    else:
+                        element.Click()
             except Exception as e:
                 self.logger.warning(f"Invoke failed, falling back to Click: {e}")
-                element.Click()
+                if self.wait_time is not None:
+                    element.Click(waitTime=self.wait_time)
+                else:
+                    element.Click()
 
         elif act_type == "GetValue":
             if self.dry_run:
@@ -462,12 +471,16 @@ class Automator:
             pattern = element.GetPattern(auto.PatternId.InvokePattern)
             if pattern:
                 pattern.Invoke()
+                if self.wait_time is not None:
+                    time.sleep(self.wait_time)
             else:
                 # Fallback to Toggle if Invoke not supported (e.g. Checkbox)
                 toggle = element.GetPattern(auto.PatternId.TogglePattern)
                 if toggle:
                     self.logger.info("Invoke pattern not found, using Toggle pattern...")
                     toggle.Toggle()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
                 else:
                     raise Exception("Element does not support Invoke or Toggle pattern")
 
@@ -512,16 +525,23 @@ class Automator:
                 sel_item = item.GetPattern(auto.PatternId.SelectionItemPattern)
                 if sel_item:
                     sel_item.Select()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
                 else:
                     # Maybe just click it?
                     self.logger.warning("Item does not support SelectionItemPattern, trying Click...")
-                    item.Click()
+                    if self.wait_time is not None:
+                        item.Click(waitTime=self.wait_time)
+                    else:
+                        item.Click()
             else:
                 # No value: Select the element itself
                 self.logger.info(f"Selecting element '{element.Name}'...")
                 sel_item = element.GetPattern(auto.PatternId.SelectionItemPattern)
                 if sel_item:
                     sel_item.Select()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
                 else:
                     raise Exception("Element does not support SelectionItemPattern")
 
@@ -853,10 +873,11 @@ if __name__ == "__main__":
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level.")
     parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no side effects).")
     parser.add_argument("--force-run", action="store_true", help="Continue execution even if errors occur.")
+    parser.add_argument("--wait-time", type=float, help="Wait time (in seconds) after each action. If not specified, uses library default.")
     
     args = parser.parse_args()
     
-    app = Automator(args.csv_files, log_file=args.log_file, log_level=args.log_level, dry_run=args.dry_run, force_run=args.force_run)
+    app = Automator(args.csv_files, log_file=args.log_file, log_level=args.log_level, dry_run=args.dry_run, force_run=args.force_run, wait_time=args.wait_time)
     
     if args.aliases:
         app.load_aliases(args.aliases)
