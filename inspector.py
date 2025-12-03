@@ -32,6 +32,14 @@ class Inspector:
 
         # Collect lineage: [Root, ..., Parent, Control]
         # We don't include Root in the path string (it's the TargetApp).
+        
+        # Optimization for Modern Mode: Use AutomationId directly if available
+        if self.mode == "modern" and control.AutomationId:
+             # Check if control is root
+             if auto.ControlsAreSame(control, root):
+                 return ""
+             return self._generate_segment(control, None)
+
         lineage = []
         current = control
         depth_safety = 0

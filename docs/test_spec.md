@@ -169,6 +169,26 @@
 - **期待される結果**:
   - 正規表現を使用したウィンドウおよび要素の特定に成功し、"Regex Verification: PASS" が出力されること。
 
+#### 2.5.8. Inspectorパス最適化の検証 (`tests/verify_inspector_path.py`)
+
+- **目的**: Modernモードにおいて、`AutomationId` が存在する場合に短いパス（`Window -> Element`）が生成されることを検証する。
+- **テスト内容**:
+  - 電卓を起動。
+  - "5"ボタンを特定。
+  - `Inspector` をModernモードで初期化し、`get_rpa_path` を呼び出す。
+- **期待される結果**:
+  - 生成されたパスに `->` が含まれず、`AutomationId` が含まれていること（"Inspector Verification: PASS"）。
+
+#### 2.5.9. 再帰検索フォールバックの検証 (`tests/verify_recursive_fallback.py`)
+
+- **目的**: 要素が指定された階層で見つからない場合、再帰検索（全探索）にフォールバックして発見できることを検証する。
+- **テスト内容**:
+  - 電卓を起動。
+  - 意図的に間違った階層（`searchDepth`）を指定して要素を検索し、失敗させる。
+  - 自動的に再帰検索が実行され、要素が発見されるか確認する。
+- **期待される結果**:
+  - 階層指定での検索失敗後、再帰検索で要素が見つかり "PASS: Found recursively" が出力されること。
+
 ## 3. テスト実行方法
 
 以下のコマンドですべての検証スクリプトを実行できます。
@@ -183,9 +203,10 @@ python tests/verify_wait_actions.py
 python tests/verify_interactive_alias.py
 python tests/verify_focus_element.py
 python tests/verify_multi_csv.py
-python tests/verify_multi_csv.py
 python tests/verify_control_flow.py
 python tests/verify_regex_match.py
+python tests/verify_inspector_path.py
+python tests/verify_recursive_fallback.py
 
 # 既存機能の検証
 python tests/verify_alias_feature.py

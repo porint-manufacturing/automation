@@ -449,8 +449,78 @@ class Automator:
 
             self.logger.info(f"Sending keys: {value}")
             element.SetFocus()
-            time.sleep(0.5)
             auto.SendKeys(value)
+
+        elif act_type == "Invoke":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would invoke element: {element.Name}")
+                return
+            self.logger.info(f"Invoking element '{element.Name}'...")
+            pattern = element.GetPattern(auto.PatternId.InvokePattern)
+            if pattern:
+                pattern.Invoke()
+            else:
+                # Fallback to Toggle if Invoke not supported (e.g. Checkbox)
+                toggle = element.GetPattern(auto.PatternId.TogglePattern)
+                if toggle:
+                    self.logger.info("Invoke pattern not found, using Toggle pattern...")
+                    toggle.Toggle()
+                else:
+                    raise Exception("Element does not support Invoke or Toggle pattern")
+
+        elif act_type == "Select":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would select element: {element.Name} (Value: {value})")
+                return
+            
+            if value:
+                # Value provided: Treat element as a container (e.g. ComboBox, List) and select child item
+                self.logger.info(f"Selecting item '{value}' in '{element.Name}'...")
+                
+                # Try to expand first if it's a combobox
+                expand = element.GetPattern(auto.PatternId.ExpandCollapsePattern)
+                if expand:
+                    try:
+                        expand.Expand()
+                        time.sleep(0.5) # Wait for expansion
+                    except:
+                        pass
+
+                # Find child item
+                # Try Name first
+                item = element.ListItemControl(Name=value)
+                if not item.Exists(maxSearchSeconds=1):
+                    item = element.TreeItemControl(Name=value)
+                
+                if not item.Exists(maxSearchSeconds=1):
+                     # Try finding by name recursively if needed, or just standard search
+                     # Let's try a generic search for the name
+                     item = element.Control(Name=value, searchDepth=1)
+                
+                if not item.Exists(maxSearchSeconds=1):
+                    raise Exception(f"Item '{value}' not found in '{element.Name}'")
+                
+                # Scroll into view if possible
+                scroll = item.GetPattern(auto.PatternId.ScrollItemPattern)
+                if scroll:
+                    scroll.ScrollIntoView()
+                
+                # Select the item
+                sel_item = item.GetPattern(auto.PatternId.SelectionItemPattern)
+                if sel_item:
+                    sel_item.Select()
+                else:
+                    # Maybe just click it?
+                    self.logger.warning("Item does not support SelectionItemPattern, trying Click...")
+                    item.Click()
+            else:
+                # No value: Select the element itself
+                self.logger.info(f"Selecting element '{element.Name}'...")
+                sel_item = element.GetPattern(auto.PatternId.SelectionItemPattern)
+                if sel_item:
+                    sel_item.Select()
+                else:
+                    raise Exception("Element does not support SelectionItemPattern")
 
         elif act_type == "SetClipboard":
             if self.dry_run:
@@ -746,6 +816,7 @@ class Automator:
                 current_depth = search_params.get("searchDepth", 1)
                 self.logger.warning(f"Element not found at depth {current_depth}. Trying depth {current_depth + 1}...")
                 search_params["searchDepth"] = current_depth + 1
+                self.logger.debug(f"Fallback 1 params: {search_params}")
                 target = current.Control(
                     foundIndex=found_index,
                     **search_params
@@ -757,6 +828,7 @@ class Automator:
                 if "searchDepth" in search_params:
                     del search_params["searchDepth"]
                 
+                self.logger.debug(f"Fallback 2 params: {search_params}")
                 target = current.Control(
                     foundIndex=found_index,
                     **search_params
