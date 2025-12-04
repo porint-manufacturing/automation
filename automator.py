@@ -795,11 +795,16 @@ class Automator:
                 
                 try:
                     # Try to eval as python expression (for math)
-                    # If it fails (e.g. string), keep as string
-                    # But eval('string') fails if not quoted.
-                    # Let's try to eval, if NameError/SyntaxError, treat as string.
-                    # But "1 + 1" should be 2.
-                    val = eval(expr)
+                    # Issue: "04 + 1" fails in Python 3 (SyntaxError: leading zeros in decimal integer literals are not permitted)
+                    # We need to sanitize the expression to remove leading zeros from numbers
+                    
+                    # Regex to find numbers with leading zeros (but not 0 itself)
+                    # \b0+([1-9]\d*)\b -> \1
+                    # Also handle 00 -> 0
+                    sanitized_expr = re.sub(r'\b0+([1-9]\d*)\b', r'\1', expr)
+                    sanitized_expr = re.sub(r'\b0+(0)\b', r'0', sanitized_expr) # 00 -> 0
+                    
+                    val = eval(sanitized_expr)
                 except:
                     val = expr
                 
