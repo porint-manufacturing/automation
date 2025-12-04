@@ -19,7 +19,8 @@ class Automator:
     def __init__(self, action_files, log_file=None, log_level="INFO", dry_run=False, force_run=False, wait_time=None):
         self.actions = []
         self.variables = {}
-        self.aliases = {}
+        self.aliases = {}  # alias_name -> rpa_path
+        self.reverse_aliases = {}  # rpa_path -> alias_name (for error messages)
         self.dry_run = dry_run
         self.force_run = force_run
         self.wait_time = wait_time  # None means use library default
@@ -64,6 +65,7 @@ class Automator:
                             if alias in self.aliases:
                                 self.logger.warning(f"Duplicate alias '{alias}' found in {alias_file}. Overwriting.")
                             self.aliases[alias] = path
+                            self.reverse_aliases[path] = alias  # Build reverse lookup
             except Exception as e:
                 self.logger.error(f"Error loading aliases from {alias_file}: {e}")
                 sys.exit(1)
@@ -324,6 +326,13 @@ class Automator:
             
             i += 1
 
+    def format_path_with_alias(self, rpa_path):
+        """Format RPA_PATH with alias name if available for error messages."""
+        if rpa_path in self.reverse_aliases:
+            alias = self.reverse_aliases[rpa_path]
+            return f"'{alias}' ({rpa_path})"
+        return rpa_path
+
     def capture_screenshot(self, name_prefix):
         """Captures a screenshot of the entire screen."""
         if self.dry_run:
@@ -378,10 +387,11 @@ class Automator:
         if key:
             element = self.find_element_by_path(window, key)
             if not element:
+                key_display = self.format_path_with_alias(key)
                 if self.dry_run:
-                     self.logger.warning(f"[Dry-run] Element not found for key: {key}")
+                     self.logger.warning(f"[Dry-run] Element not found for key: {key_display}")
                      return
-                raise Exception(f"Element not found for key: {key}")
+                raise Exception(f"Element not found for key: {key_display}")
             if self.dry_run:
                 self.logger.info(f"[Dry-run] Element found: {element.Name} ({element.ControlTypeName})")
 
@@ -408,12 +418,14 @@ class Automator:
                     target_path = self.generate_rpa_path(element, window)
                     
                     if cursor_path != target_path:
+                        target_display = self.format_path_with_alias(target_path)
+                        cursor_display = self.format_path_with_alias(cursor_path)
                         self.logger.warning(f"Element mismatch at cursor position!")
-                        self.logger.warning(f"  Expected: {target_path}")
-                        self.logger.warning(f"  At cursor: {cursor_path}")
+                        self.logger.warning(f"  Expected: {target_display}")
+                        self.logger.warning(f"  At cursor: {cursor_display}")
                         self.logger.warning(f"  This may indicate the element is obscured or the position is incorrect.")
                     else:
-                        self.logger.debug(f"✓ Verified element at cursor matches target: {target_path}")
+                        self.logger.debug(f"✓ Verified element at cursor matches target: {self.format_path_with_alias(target_path)}")
             except Exception as e:
                 self.logger.debug(f"Could not verify element at cursor: {e}")
             
