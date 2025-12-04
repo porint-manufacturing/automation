@@ -42,6 +42,7 @@ CSV ファイルに記述された手順に従って操作を実行します。
   - `SetVariable`: 変数を設定 (`Value`に `name = value`)。
   - `GetDateTime`: 現在の日時を取得して変数に保存 (`Value`に `variable = format`)。
     - フォーマット例: `current_time = yyyy/MM/dd HH:mm:ss`
+    - オフセット指定可能: `tomorrow = yyyy/MM/dd + 1` (翌日), `yesterday = yyyy/MM/dd - 1` (前日)
     - 対応フォーマット: `yyyy` (年), `MM` (月), `dd` (日), `HH` (時), `mm` (分), `ss` (秒)
   - `If`: 条件分岐開始 (`Value`に条件式)。例: `{status} == 'OK'`
   - `Else`: `If` の偽ブロック開始。

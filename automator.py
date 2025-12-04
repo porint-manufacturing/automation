@@ -572,7 +572,22 @@ class Automator:
             if "=" in value:
                 parts = value.split("=", 1)
                 var_name = parts[0].strip()
-                fmt = parts[1].strip()
+                right_side = parts[1].strip()
+                
+                # Check for offset (e.g. + 1, - 1)
+                offset = 0
+                fmt = right_side
+                
+                # Regex to find offset at the end: "format + 1" or "format - 5"
+                match = re.search(r'^(.*)\s*([+-])\s*(\d+)$', right_side)
+                if match:
+                    fmt = match.group(1).strip()
+                    op = match.group(2)
+                    num = int(match.group(3))
+                    if op == '+':
+                        offset = num
+                    else:
+                        offset = -num
 
                 # Convert C# style format to Python strftime format
                 # yyyy -> %Y, MM -> %m, dd -> %d, HH -> %H, mm -> %M, ss -> %S
@@ -584,9 +599,15 @@ class Automator:
                 fmt = fmt.replace("ss", "%S")
                 
                 now = datetime.datetime.now()
+                if offset != 0:
+                    now = now + datetime.timedelta(days=offset)
+                    
                 formatted_date = now.strftime(fmt)
                 
-                self.logger.info(f"Got date/time: '{formatted_date}'. Storing in variable '{var_name}'")
+                if offset != 0:
+                    self.logger.info(f"Got date/time: '{formatted_date}' (offset: {offset:+d} days). Storing in variable '{var_name}'")
+                else:
+                    self.logger.info(f"Got date/time: '{formatted_date}'. Storing in variable '{var_name}'")
                 self.variables[var_name] = formatted_date
             else:
                 self.logger.warning(f"Invalid GetDateTime format: {value}. Expected 'variable = format'")
