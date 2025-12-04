@@ -628,15 +628,41 @@ class Automator:
             raise Exception(f"Timeout waiting for element to be visible: {key}")
 
         elif act_type == "FocusElement":
+            # 要素の説明を決定（優先順位: Name > key（エイリアスまたはRPAパス））
+            if element.Name:
+                element_desc = element.Name
+            else:
+                # Nameがない場合はkeyを使用（エイリアス名またはRPAパス）
+                element_desc = key if key else f"{element.ControlTypeName} (AutomationId: {element.AutomationId or 'N/A'})"
+            
             if self.dry_run:
-                self.logger.info(f"[Dry-run] Would focus element: {element.Name}")
+                self.logger.info(f"[Dry-run] Would focus element: {element_desc}")
                 return
             
-            if not element.IsKeyboardFocusable:
-                self.logger.warning(f"Element '{element.Name}' is not keyboard focusable. Focus might not work.")
+            self.logger.info(f"Focusing element '{element_desc}'...")
+            
+            # フォーカス前の状態を記録
+            had_focus_before = element.HasKeyboardFocus
+            self.logger.debug(f"Before SetFocus: HasKeyboardFocus={had_focus_before}, IsKeyboardFocusable={element.IsKeyboardFocusable}")
+            
+            # フォーカスを設定
+            try:
+                element.SetFocus()
                 
-            self.logger.info(f"Focusing element '{element.Name}'...")
-            element.SetFocus()
+                # フォーカス設定後の確認（少し待機）
+                time.sleep(0.1)
+                has_focus_after = element.HasKeyboardFocus
+                
+                self.logger.debug(f"After SetFocus: HasKeyboardFocus={has_focus_after}")
+                
+                if has_focus_after:
+                    self.logger.info(f"✓ Focus successfully set on '{element_desc}'")
+                else:
+                    self.logger.warning(f"⚠ SetFocus() was called, but element does not have keyboard focus. Visual focus indicator may not appear.")
+                    
+            except Exception as e:
+                self.logger.error(f"Failed to set focus on '{element_desc}': {e}")
+                raise
 
         elif act_type == "WaitUntilEnabled":
             timeout = float(value) if value else 10.0
