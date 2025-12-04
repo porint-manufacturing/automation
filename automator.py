@@ -389,7 +389,35 @@ class Automator:
             if self.dry_run:
                 self.logger.info(f"[Dry-run] Would click element: {element.Name}")
                 return
+            
             self.logger.info(f"Clicking element '{element.Name}'...")
+            
+            # Get element's bounding rectangle for click position
+            rect = element.BoundingRectangle
+            click_x = rect.left + rect.width() // 2
+            click_y = rect.top + rect.height() // 2
+            
+            # Verify element at cursor position matches the target element
+            try:
+                # Get element at the click position
+                element_at_cursor = auto.ControlFromPoint(click_x, click_y)
+                
+                if element_at_cursor:
+                    # Generate RPA path for element at cursor
+                    cursor_path = self.generate_rpa_path(element_at_cursor, window)
+                    target_path = self.generate_rpa_path(element, window)
+                    
+                    if cursor_path != target_path:
+                        self.logger.warning(f"Element mismatch at cursor position!")
+                        self.logger.warning(f"  Expected: {target_path}")
+                        self.logger.warning(f"  At cursor: {cursor_path}")
+                        self.logger.warning(f"  This may indicate the element is obscured or the position is incorrect.")
+                    else:
+                        self.logger.debug(f"✓ Verified element at cursor matches target: {target_path}")
+            except Exception as e:
+                self.logger.debug(f"Could not verify element at cursor: {e}")
+            
+            # Proceed with click
             try:
                 invoke = element.GetPattern(auto.PatternId.InvokePattern)
                 if invoke:
@@ -500,7 +528,26 @@ class Automator:
             if self.dry_run:
                 self.logger.info(f"[Dry-run] Would invoke element: {element.Name}")
                 return
+            
             self.logger.info(f"Invoking element '{element.Name}'...")
+            
+            # Set focus first for legacy app support
+            element.SetFocus()
+            
+            # Wait for focus to be established (legacy app support)
+            max_wait = 1.0
+            wait_interval = 0.1
+            elapsed = 0
+            while elapsed < max_wait:
+                time.sleep(wait_interval)
+                elapsed += wait_interval
+                if element.HasKeyboardFocus:
+                    self.logger.debug(f"Focus confirmed after {elapsed:.1f}s")
+                    break
+            else:
+                self.logger.warning(f"Focus not confirmed after {max_wait}s, proceeding with Invoke anyway")
+            
+            # Proceed with invoke
             pattern = element.GetPattern(auto.PatternId.InvokePattern)
             if pattern:
                 pattern.Invoke()
