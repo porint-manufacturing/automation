@@ -16,6 +16,7 @@ import uiautomation as auto
 from src.automator.utils.focus import FocusManager
 from src.automator.utils.screenshot import capture_screenshot
 from src.automator.core.element_finder import ElementFinder
+from src.automator.core.action_executor import ActionExecutor
 
 # Enable High DPI Awareness to ensure correct coordinates
 try:
@@ -55,6 +56,16 @@ class Automator:
             logger=self.logger,
             aliases=self.aliases,
             reverse_aliases=self.reverse_aliases
+        )
+        
+        # Initialize ActionExecutor
+        self.action_executor = ActionExecutor(
+            logger=self.logger,
+            element_finder=self.element_finder,
+            focus_manager=self.focus_manager,
+            dry_run=self.dry_run,
+            force_run=self.force_run,
+            wait_time=self.wait_time
         )
         
         # Ensure action_files is a list
@@ -347,23 +358,18 @@ class Automator:
 
 
 
+
+
+
+
     def execute_action(self, target_app, key, act_type, value):
-        if act_type == "Launch":
-            if self.dry_run:
-                self.logger.info(f"[Dry-run] Would launch: {value}")
-                return
-            self.logger.info(f"Launching {value}...")
-            subprocess.Popen(value, shell=True)
-            return
-
-        if act_type == "Wait":
-            if self.dry_run:
-                self.logger.info(f"[Dry-run] Would wait: {value} seconds")
-                return
-            self.logger.info(f"Waiting {value} seconds...")
-            time.sleep(float(value))
-            return
-
+        # 以下のアクションは ActionExecutor に委譲
+        delegated_actions = ["Launch", "Wait", "Focus", "SetVariable", "Click", "Input", "Invoke", "SendKeys",
+                             "Select", "GetProperty", "Screenshot", "FocusElement"]
+        if act_type in delegated_actions:
+            return self.action_executor.execute(target_app, key, act_type, value, self.variables)
+        
+        # 以下は既存の実装（後で順次移行）
         window = self.element_finder.find_window(target_app)
         if not window:
             if self.dry_run:

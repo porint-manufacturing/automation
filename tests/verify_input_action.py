@@ -15,10 +15,10 @@ def verify_input_action():
         writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "Launch", "Value": "notepad.exe"})
         writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "Wait", "Value": "2"})
         writer.writerow({"TargetApp": "メモ帳", "Key": "EditControl(searchDepth=5)", "Action": "Input", "Value": "Test Input Action"})
-        writer.writerow({"TargetApp": "メモ帳", "Key": "EditControl(searchDepth=5)", "Action": "GetProperty", "Value": "text = self.Name"})
         writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "SendKeys", "Value": "{Alt}{F4}"})
         writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "Wait", "Value": "0.5"})
-        writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "SendKeys", "Value": "{Tab}{Enter}"})  # Don't save
+        # Press N key to select "Don't Save" (保存しない)
+        writer.writerow({"TargetApp": "メモ帳", "Key": "", "Action": "SendKeys", "Value": "N"})
     
     # Run automator
     result = subprocess.run(
