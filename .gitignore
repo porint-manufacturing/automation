@@ -1,8 +1,34 @@
+# CSV files (except test data)
 *.csv
-reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
 output.log
 @AutomationLog.txt
-__pycache__/
-.venv/
-.vscode/
+
+# Test outputs
+tests/*.log
+tests/*.txt
+tests/temp_*.csv
+tests/output*.txt
+
+# Errors
 errors/

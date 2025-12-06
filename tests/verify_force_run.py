@@ -5,11 +5,11 @@ import sys
 def verify_force_run():
     print("=== Force Run Option Verification ===\n")
     
-    # Create a test CSV with an intentional error
+    # Create a test CSV with an Input action to non-existent element (will fail focus)
     test_actions = """TargetApp,Key,Action,Value
 電卓,,Launch,calc.exe
 電卓,,Wait,2
-電卓,NonExistentElement,Click,
+電卓,NonExistentElement,Input,test
 電卓,,Exit,"""
     
     test_file = "tests/temp_force_run_test.csv"
@@ -17,7 +17,7 @@ def verify_force_run():
     with open(test_file, 'w', encoding='utf-8-sig') as f:
         f.write(test_actions)
     
-    print("1. Testing default behavior (should stop on error)...")
+    print("1. Testing default behavior (should stop on focus failure)...")
     result1 = subprocess.run(
         [sys.executable, "automator.py", test_file],
         capture_output=True,
@@ -25,11 +25,11 @@ def verify_force_run():
     )
     
     if result1.returncode != 0:
-        print("PASS: Stopped on error (exit code: {})".format(result1.returncode))
-        if "Stopping execution due to error" in result1.stdout:
-            print("PASS: Error message found in output")
+        print(f"PASS: Stopped on error (exit code: {result1.returncode})")
+        if "Could not set focus" in result1.stdout or "Stopping execution due to error" in result1.stdout:
+            print("PASS: Focus failure error message found in output")
         else:
-            print("INFO: Error message not found, but exit code indicates failure")
+            print("INFO: Error occurred but focus-specific message not found")
     else:
         print("FAIL: Did not stop on error")
         return False
