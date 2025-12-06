@@ -5,11 +5,11 @@ import sys
 def verify_force_run():
     print("=== Force Run Option Verification ===\n")
     
-    # Create a test CSV with an Input action to non-existent element (will fail focus)
+    # Create a test CSV with an action to non-existent window (will fail)
     test_actions = """TargetApp,Key,Action,Value
 電卓,,Launch,calc.exe
 電卓,,Wait,2
-電卓,NonExistentElement,Input,test
+NonExistentWindow123,,Focus,
 電卓,,Exit,"""
     
     test_file = "tests/temp_force_run_test.csv"
@@ -26,10 +26,10 @@ def verify_force_run():
     
     if result1.returncode != 0:
         print(f"PASS: Stopped on error (exit code: {result1.returncode})")
-        if "Could not set focus" in result1.stdout or "Stopping execution due to error" in result1.stdout:
-            print("PASS: Focus failure error message found in output")
+        if "not found" in result1.stdout or "Stopping execution due to error" in result1.stdout:
+            print("PASS: Window not found error message found in output")
         else:
-            print("INFO: Error occurred but focus-specific message not found")
+            print("INFO: Error occurred but window-specific message not found")
     else:
         print("FAIL: Did not stop on error")
         return False

@@ -7,6 +7,7 @@ automator.pyのexecute_actionメソッドから抽出。
 
 import time
 import subprocess
+import datetime
 import re
 import uiautomation as auto
 from src.automator.utils.screenshot import capture_screenshot
@@ -100,9 +101,32 @@ class ActionExecutor:
             return self._execute_screenshot(element, value)
         elif act_type == "FocusElement":
             return self._execute_focus_element(element, key)
+        elif act_type == "GetValue":
+            return self._execute_get_value(element, value, variables)
+        elif act_type == "SetClipboard":
+            return self._execute_set_clipboard(value)
+        elif act_type == "GetClipboard":
+            return self._execute_get_clipboard(value, variables)
+        elif act_type == "GetDateTime":
+            return self._execute_get_datetime(value, variables)
+        elif act_type == "VerifyValue":
+            return self._execute_verify_value(element, value)
+        elif act_type == "WaitUntilVisible":
+            return self._execute_wait_until_visible(window, key, value)
+        elif act_type == "WaitUntilEnabled":
+            return self._execute_wait_until_enabled(window, key, value)
+        elif act_type == "WaitUntilGone":
+            return self._execute_wait_until_gone(window, key, value)
+        elif act_type == "VerifyVariable":
+            return self._execute_verify_variable(key, value, variables)
+        elif act_type == "Paste":
+            return self._execute_paste(element)
+        elif act_type == "Exit":
+            return self._execute_exit(window, target_app)
         
-        # TODO: 他のアクションタイプを実装
+        # Unknown action
         raise NotImplementedError(f"Action type '{act_type}' not yet implemented in ActionExecutor")
+
     
     def _execute_launch(self, value):
         """Launchアクション - アプリケーションを起動"""
@@ -356,3 +380,234 @@ class ActionExecutor:
         if success:
             self.logger.info(f"✓ Focus successfully set on '{element_desc}'")
 
+    def _execute_get_value(self, element, value, variables):
+        """GetValueアクション - 要素の値を取得して変数に格納"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would get value from element: {element.Name} and store in '{value}'")
+            variables[value] = "[DryRunValue]"
+            return
+
+        val = element.Name
+        try:
+            pattern = element.GetPattern(auto.PatternId.ValuePattern)
+            if pattern:
+                val = pattern.Value
+        except Exception as e:
+            self.logger.warning(f"Failed to get ValuePattern: {e}")
+
+        if not val or val == element.Name:
+            try:
+                pattern = element.GetPattern(auto.PatternId.TextPattern)
+                if pattern:
+                    val = pattern.DocumentRange.GetText(-1)
+            except Exception as e:
+                self.logger.warning(f"Failed to get TextPattern: {e}")
+        
+        self.logger.info(f"Got value: '{val}'. Storing in variable '{value}'")
+        variables[value] = val
+
+    def _execute_set_clipboard(self, value):
+        """SetClipboardアクション - クリップボードに値を設定"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would set clipboard to: {value}")
+            return
+
+        text_to_copy = value.replace("{ENTER}", "\r\n")
+        self.logger.info(f"Setting clipboard: {text_to_copy}")
+        auto.SetClipboardText(text_to_copy)
+
+    def _execute_get_clipboard(self, value, variables):
+        """GetClipboardアクション - クリップボードの値を取得して変数に格納"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would get clipboard text and store in '{value}'")
+            variables[value] = "[DryRunClipboard]"
+            return
+
+        val = auto.GetClipboardText()
+        self.logger.info(f"Got clipboard text: '{val}'. Storing in variable '{value}'")
+        variables[value] = val
+
+    def _execute_get_datetime(self, value, variables):
+        """GetDateTimeアクション - 現在日時を取得して変数に格納"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would get current date/time based on: {value}")
+            return
+
+        if "=" in value:
+            parts = value.split("=", 1)
+            var_name = parts[0].strip()
+            right_side = parts[1].strip()
+            
+            # Check for offset (e.g. + 1, - 1)
+            offset = 0
+            fmt = right_side
+            
+            # Regex to find offset at the end: "format + 1" or "format - 5"
+            match = re.search(r'^(.*)\s*([+-])\s*(\d+)$', right_side)
+            if match:
+                fmt = match.group(1).strip()
+                op = match.group(2)
+                num = int(match.group(3))
+                if op == '+':
+                    offset = num
+                else:
+                    offset = -num
+
+            # Convert C# style format to Python strftime format
+            fmt = fmt.replace("yyyy", "%Y")
+            fmt = fmt.replace("MM", "%m")
+            fmt = fmt.replace("dd", "%d")
+            fmt = fmt.replace("HH", "%H")
+            fmt = fmt.replace("mm", "%M")
+            fmt = fmt.replace("ss", "%S")
+            
+            now = datetime.datetime.now()
+            if offset != 0:
+                now = now + datetime.timedelta(days=offset)
+                
+            formatted_date = now.strftime(fmt)
+            
+            if offset != 0:
+                self.logger.info(f"Got date/time: '{formatted_date}' (offset: {offset:+d} days). Storing in variable '{var_name}'")
+            else:
+                self.logger.info(f"Got date/time: '{formatted_date}'. Storing in variable '{var_name}'")
+            variables[var_name] = formatted_date
+        else:
+            self.logger.warning(f"Invalid GetDateTime format: {value}. Expected 'variable = format'")
+
+    def _execute_verify_value(self, element, value):
+        """VerifyValueアクション - 要素の値を検証"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would verify value of element: {element.Name} against '{value}'")
+            return
+
+        current_val = element.Name
+        try:
+            pattern = element.GetPattern(auto.PatternId.ValuePattern)
+            if pattern and pattern.Value:
+                current_val = pattern.Value
+        except Exception:
+            pass
+
+        if not current_val:
+            try:
+                pattern = element.GetPattern(auto.PatternId.TextPattern)
+                if pattern:
+                    current_val = pattern.DocumentRange.GetText(-1)
+            except Exception:
+                pass
+            
+        if current_val == value:
+            self.logger.info(f"Verification PASSED: Value is '{current_val}'")
+        else:
+            self.logger.error(f"Verification FAILED: Expected '{value}', got '{current_val}'")
+            raise Exception(f"Verification failed. Expected '{value}', got '{current_val}'")
+
+    def _execute_wait_until_visible(self, window, key, value):
+        """WaitUntilVisibleアクション - 要素が表示されるまで待機"""
+        timeout = float(value) if value else 10.0
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would wait until element is visible: {key} (Timeout: {timeout}s)")
+            return
+
+        self.logger.info(f"Waiting until visible: {key} (Timeout: {timeout}s)...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                found = self.element_finder.find_element_by_path(window, key)
+                if found and found.Exists(maxSearchSeconds=0):
+                    self.logger.info(f"Element became visible.")
+                    return
+            except:
+                pass
+            time.sleep(0.5)
+        raise Exception(f"Timeout waiting for element to be visible: {key}")
+
+    def _execute_wait_until_enabled(self, window, key, value):
+        """WaitUntilEnabledアクション - 要素が有効になるまで待機"""
+        timeout = float(value) if value else 10.0
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would wait until element is enabled: {key} (Timeout: {timeout}s)")
+            return
+
+        self.logger.info(f"Waiting until enabled: {key} (Timeout: {timeout}s)...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                found = self.element_finder.find_element_by_path(window, key)
+                if found and found.Exists(maxSearchSeconds=0) and found.IsEnabled:
+                    self.logger.info(f"Element became enabled.")
+                    return
+            except:
+                pass
+            time.sleep(0.5)
+        raise Exception(f"Timeout waiting for element to be enabled: {key}")
+
+    def _execute_wait_until_gone(self, window, key, value):
+        """WaitUntilGoneアクション - 要素が消えるまで待機"""
+        timeout = float(value) if value else 10.0
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would wait until element is gone: {key} (Timeout: {timeout}s)")
+            return
+
+        self.logger.info(f"Waiting until gone: {key} (Timeout: {timeout}s)...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                found = self.element_finder.find_element_by_path(window, key)
+                if not found or not found.Exists(maxSearchSeconds=0):
+                    self.logger.info(f"Element is gone.")
+                    return
+            except:
+                # If find raises exception (e.g. parent gone), then it's gone
+                self.logger.info(f"Element is gone (exception).")
+                return
+            time.sleep(0.5)
+        raise Exception(f"Timeout waiting for element to be gone: {key}")
+
+    def _execute_verify_variable(self, key, value, variables):
+        """VerifyVariableアクション - 変数の値を検証"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would verify variable '{key}' against '{value}'")
+            return
+
+        var_name = key
+        expected_val = value
+        actual_val = variables.get(var_name, '')
+        self.logger.info(f"Verifying variable '{var_name}': Expected='{expected_val}', Actual='{actual_val}'")
+        
+        expected_normalized = expected_val.replace('\\r', '\r').replace('\\n', '\n')
+        actual_normalized = str(actual_val).replace('\r\n', '\n')
+        expected_normalized = expected_normalized.replace('\r\n', '\n')
+
+        if expected_normalized != actual_normalized:
+             raise Exception(f"Verification failed! Expected '{expected_normalized}' but got '{actual_normalized}'")
+        self.logger.info("Verification passed.")
+
+    def _execute_paste(self, element):
+        """Pasteアクション - クリップボードから貼り付け"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would paste from clipboard to element: {element.Name}")
+            return
+
+        self.logger.info("Pasting from clipboard...")
+        element.SetFocus()
+        time.sleep(0.5)
+        auto.SendKeys('{Ctrl}v')
+
+    def _execute_exit(self, window, target_app):
+        """Exitアクション - ウィンドウを閉じる"""
+        if self.dry_run:
+            self.logger.info(f"[Dry-run] Would exit window: {target_app}")
+            return
+
+        self.logger.info(f"Exiting {target_app}...")
+        try:
+            pattern = window.GetPattern(auto.PatternId.WindowPattern)
+            if pattern:
+                pattern.Close()
+            else:
+                window.SetFocus()
+                auto.SendKeys('{Alt}{F4}')
+        except Exception as e:
+            self.logger.error(f"Failed to exit window: {e}")

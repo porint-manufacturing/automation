@@ -1,0 +1,30 @@
+"""
+ActionExecutor - 未実装アクションの実装コード
+
+以下のアクションを実装する必要があります：
+1. GetValue
+2. SetClipboard
+3. GetClipboard
+4. GetDateTime
+5. VerifyValue
+6. WaitUntilVisible
+7. WaitUntilEnabled
+8. WaitUntilGone
+9. VerifyVariable
+10. Paste
+11. Exit
+
+前のコミット(HEAD~1)のautomator.pyから該当コードを抽出して実装します。
+"""
+
+# GetValue: 453-476行
+# SetClipboard: 601-608行
+# GetClipboard: 610-618行
+# GetDateTime: 659-705行
+# VerifyValue: 707-744行
+# WaitUntilVisible: 746-768行
+# WaitUntilEnabled: 794-811行
+# WaitUntilGone: 813-832行
+# VerifyVariable: 834-850行
+# Paste: 852-860行
+# Exit: 862-876行

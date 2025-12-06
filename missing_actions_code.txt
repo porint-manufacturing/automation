@@ -1,0 +1,424 @@
+            val = element.Name
+            try:
+                pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                if pattern:
+                    val = pattern.Value
+            except Exception as e:
+                self.logger.warning(f"Failed to get ValuePattern: {e}")
+
+            if not val or val == element.Name:
+                try:
+                    pattern = element.GetPattern(auto.PatternId.TextPattern)
+                    if pattern:
+                        val = pattern.DocumentRange.GetText(-1)
+                except Exception as e:
+                    self.logger.warning(f"Failed to get TextPattern: {e}")
+            
+            self.logger.info(f"Got value: '{val}'. Storing in variable '{value}'")
+            self.variables[value] = val
+
+        elif act_type == "Input":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would input text '{value}' into element: {element.Name}")
+                return
+
+            self.logger.info(f"Inputting text: {value}")
+            success = False
+            
+            # Try ValuePattern first (don't restrict by type)
+            try:
+                pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                if pattern:
+                    self.logger.debug("Using ValuePattern.SetValue()...")
+                    element.SetValue(value)
+                    success = True
+            except Exception as e:
+                self.logger.debug(f"SetValue failed: {e}")
+            
+            if not success:
+                self.logger.debug("Fallback to SendKeys...")
+                # Set focus with Win32 API fallback
+                key_display = self.format_path_with_alias(key) if key else element.Name
+                self._set_focus_with_fallback(element, key_display)
+                
+                auto.SendKeys(value)
+
+        elif act_type == "SendKeys":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would send keys '{value}' to element: {element.Name}")
+                return
+
+            self.logger.info(f"Sending keys: {value}")
+            auto.SendKeys(value)
+
+        elif act_type == "Invoke":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would invoke element: {element.Name}")
+                return
+            
+            self.logger.info(f"Invoking element '{element.Name}'...")
+            
+            # Set focus with Win32 API fallback (legacy app support)
+            key_display = self.format_path_with_alias(key) if key else element.Name
+            self._set_focus_with_fallback(element, key_display)
+            
+            # Proceed with invoke
+            pattern = element.GetPattern(auto.PatternId.InvokePattern)
+            if pattern:
+                pattern.Invoke()
+                if self.wait_time is not None:
+                    time.sleep(self.wait_time)
+            else:
+                # Fallback to Toggle if Invoke not supported (e.g. Checkbox)
+                toggle = element.GetPattern(auto.PatternId.TogglePattern)
+                if toggle:
+                    self.logger.info("Invoke pattern not found, using Toggle pattern...")
+                    toggle.Toggle()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
+                else:
+                    raise Exception("Element does not support Invoke or Toggle pattern")
+
+        elif act_type == "Select":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would select element: {element.Name} (Value: {value})")
+                return
+            
+            if value:
+                # Value provided: Treat element as a container (e.g. ComboBox, List) and select child item
+                self.logger.info(f"Selecting item '{value}' in '{element.Name}'...")
+                
+                # Try to expand first if it's a combobox
+                expand = element.GetPattern(auto.PatternId.ExpandCollapsePattern)
+                if expand:
+                    try:
+                        expand.Expand()
+                        time.sleep(0.5) # Wait for expansion
+                    except:
+                        pass
+
+                # Find child item
+                # Try Name first
+                item = element.ListItemControl(Name=value)
+                if not item.Exists(maxSearchSeconds=1):
+                    item = element.TreeItemControl(Name=value)
+                
+                if not item.Exists(maxSearchSeconds=1):
+                     # Try finding by name recursively if needed, or just standard search
+                     # Let's try a generic search for the name
+                     item = element.Control(Name=value, searchDepth=1)
+                
+                if not item.Exists(maxSearchSeconds=1):
+                    raise Exception(f"Item '{value}' not found in '{element.Name}'")
+                
+                # Scroll into view if possible
+                scroll = item.GetPattern(auto.PatternId.ScrollItemPattern)
+                if scroll:
+                    scroll.ScrollIntoView()
+                
+                # Select the item
+                sel_item = item.GetPattern(auto.PatternId.SelectionItemPattern)
+                if sel_item:
+                    sel_item.Select()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
+                else:
+                    # Maybe just click it?
+                    self.logger.warning("Item does not support SelectionItemPattern, trying Click...")
+                    if self.wait_time is not None:
+                        item.Click(waitTime=self.wait_time)
+                    else:
+                        item.Click()
+            else:
+                # No value: Select the element itself
+                self.logger.info(f"Selecting element '{element.Name}'...")
+                sel_item = element.GetPattern(auto.PatternId.SelectionItemPattern)
+                if sel_item:
+                    sel_item.Select()
+                    if self.wait_time is not None:
+                        time.sleep(self.wait_time)
+                else:
+                    raise Exception("Element does not support SelectionItemPattern")
+
+        elif act_type == "SetClipboard":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would set clipboard to: {value}")
+                return
+
+            text_to_copy = value.replace("{ENTER}", "\r\n")
+            self.logger.info(f"Setting clipboard: {text_to_copy}")
+            auto.SetClipboardText(text_to_copy)
+
+        elif act_type == "GetClipboard":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would get clipboard text and store in '{value}'")
+                self.variables[value] = "[DryRunClipboard]"
+                return
+
+            val = auto.GetClipboardText()
+            self.logger.info(f"Got clipboard text: '{val}'. Storing in variable '{value}'")
+            self.variables[value] = val
+
+        elif act_type == "GetProperty":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would get property: {value}")
+                return
+
+            # Parse: var_name = direction.property
+            if "=" not in value:
+                self.logger.error(f"GetProperty requires format: var = direction.property (got: {value})")
+                return
+            
+            var_name, spec = value.split("=", 1)
+            var_name = var_name.strip()
+            spec = spec.strip()
+            
+            # Parse direction.property
+            if "." not in spec:
+                self.logger.error(f"GetProperty requires format: direction.property (got: {spec})")
+                return
+            
+            direction, prop_name = spec.split(".", 1)
+            direction = direction.strip()
+            prop_name = prop_name.strip()
+            
+            # Get relative element
+            target_elem = self.get_relative_element(element, window, direction)
+            if not target_elem:
+                key_display = self.format_path_with_alias(key) if key else "window"
+                self.logger.warning(f"No {direction} element found for {key_display}")
+                self.variables[var_name] = ""
+                return
+            
+            # Get property value
+            prop_value = self.get_element_property(target_elem, prop_name)
+            self.variables[var_name] = prop_value
+            
+            # Log with element info
+            elem_desc = target_elem.Name or target_elem.ControlTypeName or "element"
+            self.logger.info(f"Got {direction}.{prop_name} = '{prop_value}' from '{elem_desc}', stored in '{var_name}'")
+
+        elif act_type == "GetDateTime":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would get current date/time based on: {value}")
+                return
+
+            if "=" in value:
+                parts = value.split("=", 1)
+                var_name = parts[0].strip()
+                right_side = parts[1].strip()
+                
+                # Check for offset (e.g. + 1, - 1)
+                offset = 0
+                fmt = right_side
+                
+                # Regex to find offset at the end: "format + 1" or "format - 5"
+                match = re.search(r'^(.*)\s*([+-])\s*(\d+)$', right_side)
+                if match:
+                    fmt = match.group(1).strip()
+                    op = match.group(2)
+                    num = int(match.group(3))
+                    if op == '+':
+                        offset = num
+                    else:
+                        offset = -num
+
+                # Convert C# style format to Python strftime format
+                # yyyy -> %Y, MM -> %m, dd -> %d, HH -> %H, mm -> %M, ss -> %S
+                fmt = fmt.replace("yyyy", "%Y")
+                fmt = fmt.replace("MM", "%m")
+                fmt = fmt.replace("dd", "%d")
+                fmt = fmt.replace("HH", "%H")
+                fmt = fmt.replace("mm", "%M")
+                fmt = fmt.replace("ss", "%S")
+                
+                now = datetime.datetime.now()
+                if offset != 0:
+                    now = now + datetime.timedelta(days=offset)
+                    
+                formatted_date = now.strftime(fmt)
+                
+                if offset != 0:
+                    self.logger.info(f"Got date/time: '{formatted_date}' (offset: {offset:+d} days). Storing in variable '{var_name}'")
+                else:
+                    self.logger.info(f"Got date/time: '{formatted_date}'. Storing in variable '{var_name}'")
+                self.variables[var_name] = formatted_date
+            else:
+                self.logger.warning(f"Invalid GetDateTime format: {value}. Expected 'variable = format'")
+
+        elif act_type == "VerifyValue":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would verify value of element: {element.Name} against '{value}'")
+                return
+
+            current_val = element.Name
+            try:
+                pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                if pattern and pattern.Value:
+                    current_val = pattern.Value
+            except Exception:
+                pass
+
+            if not current_val:
+                try:
+                    pattern = element.GetPattern(auto.PatternId.TextPattern)
+                    if pattern:
+                        current_val = pattern.DocumentRange.GetText(-1)
+                except Exception:
+                    pass
+            
+            # The original code had an empty 'if not key: pass' block here.
+            # The new code replaces the verification logic from here.
+            
+            # New verification logic for VerifyValue
+            current_val = element.Name # This line seems redundant if current_val was already set above
+            try:
+                pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                if pattern:
+                    current_val = pattern.Value
+            except:
+                pass
+                
+            if current_val == value:
+                self.logger.info(f"Verification PASSED: Value is '{current_val}'")
+            else:
+                self.logger.error(f"Verification FAILED: Expected '{value}', got '{current_val}'")
+                raise Exception(f"Verification failed. Expected '{value}', got '{current_val}'")
+
+        elif act_type == "WaitUntilVisible":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is visible: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until visible: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # Use a custom find method or just try/except with find_element_by_path
+                # Since find_element_by_path logs errors/warnings, we might want to suppress them here or just accept them.
+                # To avoid spamming logs, we can check existence manually or modify find_element_by_path.
+                # For simplicity, let's just try to find it.
+                try:
+                    # We need to find the element dynamically each time
+                    found = self.find_element_by_path(window, key)
+                    if found and found.Exists(maxSearchSeconds=0):
+                        self.logger.info(f"Element became visible.")
+                        return
+                except:
+                    pass
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be visible: {key}")
+
+        elif act_type == "FocusElement":
+            # 要素の説明を決定（優先順位: Name > key（エイリアスまたはRPAパス））
+            if element.Name:
+                element_desc = element.Name
+            else:
+                # Nameがない場合はkeyを使用（エイリアス名またはRPAパス）
+                element_desc = key if key else f"{element.ControlTypeName} (AutomationId: {element.AutomationId or 'N/A'})"
+            
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would focus element: {element_desc}")
+                return
+            
+            self.logger.info(f"Focusing element '{element_desc}'...")
+            
+            # フォーカス前の状態を記録
+            had_focus_before = element.HasKeyboardFocus
+            self.logger.debug(f"Before SetFocus: HasKeyboardFocus={had_focus_before}, IsKeyboardFocusable={element.IsKeyboardFocusable}")
+            
+            # Set focus with Win32 API fallback
+            success = self._set_focus_with_fallback(element, element_desc)
+            
+            if success:
+                self.logger.info(f"✓ Focus successfully set on '{element_desc}'")
+
+        elif act_type == "WaitUntilEnabled":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is enabled: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until enabled: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    found = self.find_element_by_path(window, key)
+                    if found and found.Exists(maxSearchSeconds=0) and found.IsEnabled:
+                        self.logger.info(f"Element became enabled.")
+                        return
+                except:
+                    pass
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be enabled: {key}")
+
+        elif act_type == "WaitUntilGone":
+            timeout = float(value) if value else 10.0
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would wait until element is gone: {key} (Timeout: {timeout}s)")
+                return
+
+            self.logger.info(f"Waiting until gone: {key} (Timeout: {timeout}s)...")
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                try:
+                    found = self.find_element_by_path(window, key)
+                    if not found or not found.Exists(maxSearchSeconds=0):
+                        self.logger.info(f"Element is gone.")
+                        return
+                except:
+                    # If find raises exception (e.g. parent gone), then it's gone
+                    self.logger.info(f"Element is gone (exception).")
+                    return
+                time.sleep(0.5)
+            raise Exception(f"Timeout waiting for element to be gone: {key}")
+
+        elif act_type == "VerifyVariable":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would verify variable '{key}' against '{value}'")
+                return
+
+            var_name = key
+            expected_val = value
+            actual_val = self.variables.get(var_name, '')
+            self.logger.info(f"Verifying variable '{var_name}': Expected='{expected_val}', Actual='{actual_val}'")
+            
+            expected_normalized = expected_val.replace('\\r', '\r').replace('\\n', '\n')
+            actual_normalized = str(actual_val).replace('\r\n', '\n')
+            expected_normalized = expected_normalized.replace('\r\n', '\n')
+
+            if expected_normalized != actual_normalized:
+                 raise Exception(f"Verification failed! Expected '{expected_normalized}' but got '{actual_normalized}'")
+            self.logger.info("Verification passed.")
+
+        elif act_type == "Paste":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would paste from clipboard to element: {element.Name}")
+                return
+
+            self.logger.info("Pasting from clipboard...")
+            element.SetFocus()
+            time.sleep(0.5)
+            auto.SendKeys('{Ctrl}v')
+
+        elif act_type == "Exit":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would exit window: {target_app}")
+                return
+
+            self.logger.info(f"Exiting {target_app}...")
+            try:
+                pattern = window.GetPattern(auto.PatternId.WindowPattern)
+                if pattern:
+                    pattern.Close()
+                else:
+                    window.SetFocus()
+                    auto.SendKeys('{Alt}{F4}')
+            except Exception as e:
+                self.logger.error(f"Failed to exit window: {e}")
+
+        elif act_type == "SetVariable":
+            if self.dry_run:
+                self.logger.info(f"[Dry-run] Would set variable based on: {value}")
+                return
+
