@@ -1,0 +1,277 @@
+"""
+Element Finder Module
+
+Handles UI element search and retrieval operations.
+"""
+
+import logging
+import re
+import uiautomation as auto
+
+
+class ElementFinder:
+    """Manages UI element search and property retrieval."""
+    
+    def __init__(self, logger=None, aliases=None, reverse_aliases=None):
+        """
+        Initialize ElementFinder.
+        
+        Args:
+            logger: Logger instance
+            aliases: Dictionary of alias mappings
+            reverse_aliases: Reverse lookup dictionary for aliases
+        """
+        self.logger = logger or logging.getLogger(__name__)
+        self.aliases = aliases or {}
+        self.reverse_aliases = reverse_aliases or {}
+    
+    def format_path_with_alias(self, rpa_path):
+        """Format RPA_PATH with alias name if available for error messages."""
+        if rpa_path in self.reverse_aliases:
+            alias = self.reverse_aliases[rpa_path]
+            return f"'{alias}' ({rpa_path})"
+        return rpa_path
+    
+    def find_window(self, target_app):
+        """Find window by application name."""
+        self.logger.debug(f"Searching for window '{target_app}'...")
+        
+        # Explicit Regex Mode
+        if target_app.startswith("regex:"):
+            pattern = target_app[6:] # Strip 'regex:'
+            self.logger.debug(f"Using regex pattern: {pattern}")
+            win = auto.WindowControl(searchDepth=1, RegexName=pattern)
+            if win.Exists(maxSearchSeconds=1):
+                return win
+            return None
+
+        # Standard Mode (Exact match first, then partial regex fallback)
+        win = auto.WindowControl(searchDepth=1, Name=target_app)
+        if win.Exists(maxSearchSeconds=1):
+            return win
+        
+        # Fallback: Partial match using RegexName
+        safe_name = re.escape(target_app)
+        win = auto.WindowControl(searchDepth=1, RegexName=f".*{safe_name}.*")
+        if win.Exists(maxSearchSeconds=1):
+            return win
+            
+        return None
+    
+    def find_element_by_path(self, root, path_string):
+        """Find element by path string."""
+        parts = [p.strip() for p in path_string.split('->')]
+        current = root
+        
+        for part in parts:
+            if not part:
+                continue
+            
+            match = re.match(r"(\w+)(?:\((.*)\))?", part)
+            if not match:
+                self.logger.error(f"Invalid path part format: {part}")
+                return None
+            
+            control_type = match.group(1)
+            props_str = match.group(2)
+            
+            search_params = {"ControlTypeName": control_type}
+            found_index = 1
+
+            if props_str:
+                name_match = re.search(r"\bName='([^']*)'", props_str)
+                regex_name_match = re.search(r"\bRegexName='([^']*)'", props_str)
+                id_match = re.search(r"\bAutomationId='([^']*)'", props_str)
+                class_match = re.search(r"\bClassName='([^']*)'", props_str)
+                index_match = re.search(r"\bfoundIndex=(\d+)", props_str)
+                depth_match = re.search(r"\bsearchDepth=(\d+)", props_str)
+                
+                if name_match:
+                    search_params["Name"] = name_match.group(1)
+                if regex_name_match:
+                    search_params["RegexName"] = regex_name_match.group(1)
+                if id_match:
+                    search_params["AutomationId"] = id_match.group(1)
+                if class_match:
+                    search_params["ClassName"] = class_match.group(1)
+                if index_match:
+                    found_index = int(index_match.group(1))
+                if depth_match:
+                    search_params["searchDepth"] = int(depth_match.group(1))
+
+            self.logger.debug(f"Searching descendant: {search_params} (Index: {found_index}) under {current.Name}...")
+            
+            target = current.Control(
+                foundIndex=found_index,
+                **search_params
+            )
+            
+            if not target.Exists(maxSearchSeconds=2):
+                # Fallback: Try increasing search depth by 1
+                current_depth = search_params.get("searchDepth", 1)
+                self.logger.warning(f"Element not found at depth {current_depth}. Trying depth {current_depth + 1}...")
+                search_params["searchDepth"] = current_depth + 1
+                self.logger.debug(f"Fallback 1 params: {search_params}")
+                target = current.Control(
+                    foundIndex=found_index,
+                    **search_params
+                )
+
+            if not target.Exists(maxSearchSeconds=1):
+                # Fallback 2: Try recursive search (ignore depth)
+                self.logger.warning(f"Element not found at depth {current_depth + 1}. Trying recursive search...")
+                if "searchDepth" in search_params:
+                    del search_params["searchDepth"]
+                
+                self.logger.debug(f"Fallback 2 params: {search_params}")
+                target = current.Control(
+                    foundIndex=found_index,
+                    **search_params
+                )
+                
+            if not target.Exists(maxSearchSeconds=1):
+                self.logger.warning(f"Not found: {part}")
+                return None
+            
+            current = target
+            
+        return current
+    
+    def get_element_property(self, element, prop_name):
+        """Get a property value from an element."""
+        try:
+            # Basic properties
+            if prop_name == 'Name':
+                return element.Name or ''
+            elif prop_name == 'AutomationId':
+                return element.AutomationId or ''
+            elif prop_name == 'ControlType':
+                return element.ControlTypeName or ''
+            elif prop_name == 'ClassName':
+                return element.ClassName or ''
+            elif prop_name == 'IsEnabled':
+                return str(element.IsEnabled)
+            elif prop_name == 'IsVisible':
+                return str(not element.IsOffscreen)
+            elif prop_name == 'IsKeyboardFocusable':
+                return str(element.IsKeyboardFocusable)
+            elif prop_name == 'HasKeyboardFocus':
+                return str(element.HasKeyboardFocus)
+            
+            # Pattern-based properties
+            elif prop_name == 'Value':
+                try:
+                    pattern = element.GetPattern(auto.PatternId.ValuePattern)
+                    return pattern.Value if pattern else ''
+                except Exception:
+                    return ''
+            elif prop_name == 'Text':
+                try:
+                    pattern = element.GetPattern(auto.PatternId.TextPattern)
+                    if pattern:
+                        return pattern.DocumentRange.GetText(-1)
+                except Exception:
+                    pass
+                return element.Name or ''
+            elif prop_name == 'IsChecked':
+                try:
+                    pattern = element.GetPattern(auto.PatternId.TogglePattern)
+                    if pattern:
+                        state = pattern.ToggleState
+                        return 'True' if state == 1 else 'False'  # 1 = On, 0 = Off
+                except Exception:
+                    return ''
+            elif prop_name == 'IsSelected':
+                try:
+                    pattern = element.GetPattern(auto.PatternId.SelectionItemPattern)
+                    return str(pattern.IsSelected) if pattern else ''
+                except Exception:
+                    return ''
+            else:
+                self.logger.warning(f"Unknown property: {prop_name}")
+                return ''
+        except Exception as e:
+            self.logger.warning(f"Failed to get property '{prop_name}': {e}")
+            return ''
+    
+    def get_relative_element(self, element, window, direction):
+        """Get a relative element based on direction."""
+        try:
+            if direction == 'self':
+                return element
+            elif direction == 'parent':
+                parent = element.GetParentControl()
+                return parent if parent else None
+            elif direction == 'next':
+                sibling = element.GetNextSiblingControl()
+                return sibling if sibling else None
+            elif direction in ['prev', 'previous']:
+                sibling = element.GetPreviousSiblingControl()
+                return sibling if sibling else None
+            elif direction in ['left', 'right', 'up', 'down', 'above', 'below']:
+                # Coordinate-based search
+                return self._find_element_by_position(element, window, direction)
+            else:
+                self.logger.warning(f"Unknown direction: {direction}")
+                return None
+        except Exception as e:
+            self.logger.warning(f"Failed to get {direction} element: {e}")
+            return None
+    
+    def _find_element_by_position(self, element, window, direction):
+        """Find element by relative position (left, right, up, down)."""
+        rect = element.BoundingRectangle
+        center_x = rect.left + rect.width() // 2
+        center_y = rect.top + rect.height() // 2
+        
+        # Get all controls in the window
+        all_controls = []
+        def collect_controls(ctrl):
+            all_controls.append(ctrl)
+            for child in ctrl.GetChildren():
+                collect_controls(child)
+        
+        try:
+            collect_controls(window)
+        except Exception as e:
+            self.logger.debug(f"Error collecting controls: {e}")
+            return None
+        
+        # Filter and find nearest element
+        candidates = []
+        for ctrl in all_controls:
+            if ctrl == element:
+                continue
+            try:
+                ctrl_rect = ctrl.BoundingRectangle
+                ctrl_center_x = ctrl_rect.left + ctrl_rect.width() // 2
+                ctrl_center_y = ctrl_rect.top + ctrl_rect.height() // 2
+                
+                if direction == 'left':
+                    # Left: X is less, Y overlaps
+                    if ctrl_center_x < center_x and abs(ctrl_center_y - center_y) < rect.height():
+                        distance = center_x - ctrl_center_x
+                        candidates.append((distance, ctrl))
+                elif direction == 'right':
+                    # Right: X is greater, Y overlaps
+                    if ctrl_center_x > center_x and abs(ctrl_center_y - center_y) < rect.height():
+                        distance = ctrl_center_x - center_x
+                        candidates.append((distance, ctrl))
+                elif direction in ['up', 'above']:
+                    # Up: Y is less, X overlaps
+                    if ctrl_center_y < center_y and abs(ctrl_center_x - center_x) < rect.width():
+                        distance = center_y - ctrl_center_y
+                        candidates.append((distance, ctrl))
+                elif direction in ['down', 'below']:
+                    # Down: Y is greater, X overlaps
+                    if ctrl_center_y > center_y and abs(ctrl_center_x - center_x) < rect.width():
+                        distance = ctrl_center_y - center_y
+                        candidates.append((distance, ctrl))
+            except Exception:
+                continue
+        
+        # Return nearest element
+        if candidates:
+            candidates.sort(key=lambda x: x[0])
+            return candidates[0][1]
+        return None
