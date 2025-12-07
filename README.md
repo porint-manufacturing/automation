@@ -99,13 +99,30 @@ python automator.py actions.csv
 python automator.py actions.csv --aliases aliases.csv
 ```
 
-## ディレクトリ構成
+## プロジェクト構造
 
-- `automator.py`: 自動化実行のメインスクリプト
-- `inspector.py`: UI解析ツール
-- `docs/`: ドキュメント
-- `tests/`: テストスクリプト
-- `debug/`: デバッグ用スクリプト
+```
+automation/
+├── automator.py          # 自動化実行のメインスクリプト
+├── inspector.py          # UI解析ツール
+├── src/                  # ソースコードモジュール
+│   ├── automator/       # Automatorモジュール
+│   │   ├── core/        # コアロジック
+│   │   │   ├── action_executor.py    # アクション実行（23種類）
+│   │   │   └── element_finder.py     # UI要素検索とRPAパス解析
+│   │   └── utils/       # ユーティリティ
+│   │       ├── focus.py               # ウィンドウフォーカス管理
+│   │       └── screenshot.py          # エラー時スクリーンショット
+│   └── inspector/       # Inspectorモジュール
+│       ├── core/
+│       │   └── path_generator.py     # RPAパス生成ロジック
+│       └── utils/
+│           ├── click_handler.py       # マウス/キーボード入力処理
+│           └── output_handler.py      # 出力処理（CSV/clipboard）
+├── tests/               # テストスクリプト
+├── docs/                # ドキュメント
+└── errors/              # エラー時のスクリーンショット保存先
+```
 
 ## ライセンス
 
