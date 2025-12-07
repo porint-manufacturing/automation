@@ -1,7 +1,7 @@
 """
-Screenshot Utilities
+スクリーンショットユーティリティ
 
-Handles screenshot capture functionality.
+スクリーンショット撮影機能を処理。
 """
 
 import logging
@@ -12,14 +12,14 @@ import uiautomation as auto
 
 def capture_screenshot(name_prefix, dry_run=False):
     """
-    Capture a screenshot of the entire screen.
+    画面全体のスクリーンショットを撮影。
     
     Args:
-        name_prefix: Prefix for the screenshot filename
-        dry_run: If True, only log the action without capturing
+        name_prefix: スクリーンショットファイル名のプレフィックス
+        dry_run: Trueの場合、撮影せずにログ出力のみ
         
     Returns:
-        str: Path to saved screenshot, or None if failed/dry-run
+        str: 保存されたスクリーンショットのパス、失敗/dry-runの場合はNone
     """
     logger = logging.getLogger(__name__)
     
@@ -34,7 +34,7 @@ def capture_screenshot(name_prefix, dry_run=False):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"errors/{name_prefix}_{timestamp}.png"
         
-        # Capture full screen
+        # 全画面キャプチャ
         auto.GetRootControl().CaptureToImage(filename)
         logger.info(f"Screenshot saved to: {filename}")
         return filename

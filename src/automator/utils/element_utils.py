@@ -1,28 +1,28 @@
 """
-Element Utilities
+要素ユーティリティ
 
-Helper functions for UI element path formatting and manipulation.
+UI要素パスのフォーマットと操作のヘルパー関数。
 """
 
 
 def format_path_with_alias(path, aliases):
     """
-    Format element path with alias resolution for display.
+    表示用にエイリアス解決を含む要素パスをフォーマット。
     
     Args:
-        path: Element path string
-        aliases: Dictionary of alias mappings
+        path: 要素パス文字列
+        aliases: エイリアスマッピングの辞書
         
     Returns:
-        str: Formatted path with alias information
+        str: エイリアス情報を含むフォーマットされたパス
     """
     if not path:
         return path
     
-    # Check if path starts with an alias
+    # パスがエイリアスで始まるかチェック
     for alias_name, alias_path in aliases.items():
         if path.startswith(f"${alias_name}"):
-            # Show both alias and resolved path
+            # エイリアスと解決されたパスの両方を表示
             resolved = path.replace(f"${alias_name}", alias_path, 1)
             return f"{path} (resolved: {resolved})"
     
