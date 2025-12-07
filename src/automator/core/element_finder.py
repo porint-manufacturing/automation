@@ -1,7 +1,7 @@
 """
 Element Finder Module
 
-Handles UI element search and retrieval operations.
+UI要素の検索と取得操作を処理。
 """
 
 import logging
@@ -10,47 +10,47 @@ import uiautomation as auto
 
 
 class ElementFinder:
-    """Manages UI element search and property retrieval."""
+    """UI要素の検索とプロパティ取得を管理する。"""
     
     def __init__(self, logger=None, aliases=None, reverse_aliases=None):
         """
-        Initialize ElementFinder.
+        ElementFinder初期化。
         
         Args:
-            logger: Logger instance
-            aliases: Dictionary of alias mappings
-            reverse_aliases: Reverse lookup dictionary for aliases
+            logger: Loggerインスタンス
+            aliases: エイリアスマッピングの辞書
+            reverse_aliases: エイリアス用の逆引き辞書
         """
         self.logger = logger or logging.getLogger(__name__)
         self.aliases = aliases or {}
         self.reverse_aliases = reverse_aliases or {}
     
     def format_path_with_alias(self, rpa_path):
-        """Format RPA_PATH with alias name if available for error messages."""
+        """エラーメッセージ用にエイリアス名でRPA_PATHをフォーマット。"""
         if rpa_path in self.reverse_aliases:
             alias = self.reverse_aliases[rpa_path]
             return f"'{alias}' ({rpa_path})"
         return rpa_path
     
     def find_window(self, target_app):
-        """Find window by application name."""
+        """アプリケーション名でウィンドウを検索。"""
         self.logger.debug(f"Searching for window '{target_app}'...")
         
-        # Explicit Regex Mode
+        # 明示的な正規表現モード
         if target_app.startswith("regex:"):
-            pattern = target_app[6:] # Strip 'regex:'
+            pattern = target_app[6:] # 'regex:' を除去
             self.logger.debug(f"Using regex pattern: {pattern}")
             win = auto.WindowControl(searchDepth=1, RegexName=pattern)
             if win.Exists(maxSearchSeconds=1):
                 return win
             return None
 
-        # Standard Mode (Exact match first, then partial regex fallback)
+        # 標準モード（まず完全一致、次に部分一致の正規表現フォールバック）
         win = auto.WindowControl(searchDepth=1, Name=target_app)
         if win.Exists(maxSearchSeconds=1):
             return win
         
-        # Fallback: Partial match using RegexName
+        # フォールバック: RegexNameを使用した部分一致
         safe_name = re.escape(target_app)
         win = auto.WindowControl(searchDepth=1, RegexName=f".*{safe_name}.*")
         if win.Exists(maxSearchSeconds=1):
@@ -59,7 +59,7 @@ class ElementFinder:
         return None
     
     def find_element_by_path(self, root, path_string):
-        """Find element by path string."""
+        """パス文字列で要素を検索。"""
         parts = [p.strip() for p in path_string.split('->')]
         current = root
         
@@ -107,7 +107,7 @@ class ElementFinder:
             )
             
             if not target.Exists(maxSearchSeconds=2):
-                # Fallback: Try increasing search depth by 1
+                # フォールバック: 検索深度を1増やして試す
                 current_depth = search_params.get("searchDepth", 1)
                 self.logger.warning(f"Element not found at depth {current_depth}. Trying depth {current_depth + 1}...")
                 search_params["searchDepth"] = current_depth + 1
@@ -118,7 +118,7 @@ class ElementFinder:
                 )
 
             if not target.Exists(maxSearchSeconds=1):
-                # Fallback 2: Try recursive search (ignore depth)
+                # フォールバック2: 再帰検索を試す（深度を無視）
                 self.logger.warning(f"Element not found at depth {current_depth + 1}. Trying recursive search...")
                 if "searchDepth" in search_params:
                     del search_params["searchDepth"]
@@ -138,9 +138,9 @@ class ElementFinder:
         return current
     
     def get_element_property(self, element, prop_name):
-        """Get a property value from an element."""
+        """要素からプロパティ値を取得。"""
         try:
-            # Basic properties
+            # 基本プロパティ
             if prop_name == 'Name':
                 return element.Name or ''
             elif prop_name == 'AutomationId':
@@ -158,7 +158,7 @@ class ElementFinder:
             elif prop_name == 'HasKeyboardFocus':
                 return str(element.HasKeyboardFocus)
             
-            # Pattern-based properties
+            # パターンベースのプロパティ
             elif prop_name == 'Value':
                 try:
                     pattern = element.GetPattern(auto.PatternId.ValuePattern)
@@ -195,7 +195,7 @@ class ElementFinder:
             return ''
     
     def get_relative_element(self, element, window, direction):
-        """Get a relative element based on direction."""
+        """方向に基づいて相対的な要素を取得。"""
         try:
             if direction == 'self':
                 return element
@@ -209,7 +209,7 @@ class ElementFinder:
                 sibling = element.GetPreviousSiblingControl()
                 return sibling if sibling else None
             elif direction in ['left', 'right', 'up', 'down', 'above', 'below']:
-                # Coordinate-based search
+                # 座標ベースの検索
                 return self._find_element_by_position(element, window, direction)
             else:
                 self.logger.warning(f"Unknown direction: {direction}")
@@ -219,7 +219,7 @@ class ElementFinder:
             return None
     
     def _find_element_by_position(self, element, window, direction):
-        """Find element by relative position (left, right, up, down)."""
+        """相対位置（left, right, up, down）で要素を検索。"""
         rect = element.BoundingRectangle
         center_x = rect.left + rect.width() // 2
         center_y = rect.top + rect.height() // 2
@@ -270,7 +270,7 @@ class ElementFinder:
             except Exception:
                 continue
         
-        # Return nearest element
+        # 最も近い要素を返す
         if candidates:
             candidates.sort(key=lambda x: x[0])
             return candidates[0][1]
