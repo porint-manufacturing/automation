@@ -21,10 +21,10 @@ class OutputHandler:
     
     def finalize(self, recorded_items):
         """
-        Process and output recorded items based on output mode.
+        出力モードに基づいて記録されたアイテムを処理して出力。
         
         Args:
-            recorded_items: List of recorded items (dicts)
+            recorded_items: 記録されたアイテムのリスト（辞書）
         """
         if not recorded_items:
             print("No items recorded.")
@@ -40,7 +40,7 @@ class OutputHandler:
             print(f"Saved to {filename}")
             
         elif self.output_mode == "clipboard":
-            # Generate CSV string
+            # CSV文字列を生成
             output = io.StringIO()
             writer = csv.DictWriter(output, fieldnames=["TargetApp", "Key", "Action", "Value"])
             writer.writeheader()
@@ -60,10 +60,10 @@ class OutputHandler:
                 alias_items = []
                 for item in recorded_items:
                     if "AliasName" in item:
-                        # Interactive mode item
+                        # 対話型モードアイテム
                         alias_items.append(item)
                     else:
-                        # Normal mode item (convert Key to RPA_Path)
+                        # 通常モードアイテム（KeyをRPA_Pathに変換）
                         alias_items.append({"AliasName": "", "RPA_Path": item["Key"]})
                 
                 writer.writerows(alias_items)

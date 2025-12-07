@@ -13,24 +13,24 @@ import uiautomation as auto
 
 class ClickHandler:
     def __init__(self):
-        """Initialize ClickHandler"""
+        """ClickHandler初期化"""
         pass
     
     def wait_for_click(self):
         """
-        Waits for a left or right click and returns (control, x, y). 
-        Returns None if ESC is pressed.
+        左または右クリックを待機し、(control, x, y)を返す。
+        ESCが押された場合はNoneを返す。
         """
         while True:
             if keyboard.is_pressed('esc'):
                 return None
             
-            # Check for left click (0x01) or right click (0x02)
+            # 左クリック (0x01) または右クリック (0x02) をチェック
             if (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000) or \
                (ctypes.windll.user32.GetAsyncKeyState(0x02) & 0x8000):
                 x, y = auto.GetCursorPos()
                 control = auto.ControlFromPoint(x, y)
-                # Wait for release to avoid multiple registrations
+                # 複数登録を回避するためにリリースを待つ
                 while (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000) or \
                       (ctypes.windll.user32.GetAsyncKeyState(0x02) & 0x8000):
                     time.sleep(0.05)

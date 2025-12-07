@@ -18,19 +18,19 @@ class PathGenerator:
     
     def get_rpa_path(self, control):
         """
-        Generates a robust RPA path for the control.
-        Uses chained paths (Parent -> Child) to improve performance and uniqueness.
+        コントロールの堅牢なRPAパスを生成する
+        パフォーマンスと一意性を向上させるためにチェーンパス（親 -> 子）を使用
         """
         root = control.GetTopLevelControl()
         if not root:
             return self._generate_segment(control, None)
 
-        # Collect lineage: [Root, ..., Parent, Control]
-        # We don't include Root in the path string (it's the TargetApp).
+        # 系譜収集: [Root, ..., Parent, Control]
+        # パス文字列にはRootを含めない（TargetAppなので）。
         
-        # Optimization for Modern Mode: Use AutomationId directly if available
+        # Modernモードの最適化: AutomationIdが利用可能な場合は直接使用
         if self.mode == "modern" and control.AutomationId:
-             # Check if control is root
+             # controlがrootかどうかをチェック
              if auto.ControlsAreSame(control, root):
                  return ""
              return self._generate_segment(control, None)
@@ -49,7 +49,7 @@ class PathGenerator:
                 break
             depth_safety += 1
         
-        # Generate path segments
+        # パスセグメントを生成
         path_segments = []
         parent = root
         for item in lineage:
@@ -60,7 +60,7 @@ class PathGenerator:
         return " -> ".join(path_segments)
     
     def _generate_segment(self, control, parent):
-        """Generates a single path segment (Type(Props)) relative to parent."""
+        """親に相対する単一パスセグメント（Type(Props)）を生成する"""
         control_type = control.ControlTypeName
         name = control.Name
         automation_id = control.AutomationId
@@ -69,31 +69,31 @@ class PathGenerator:
         criteria = []
         search_params = {"ControlTypeName": control_type}
         
-        # 1. Strategy: AutomationId (Modern)
+        # 1. 戦略: AutomationId (Modern)
         if self.mode == "modern" and automation_id:
             criteria.append(f"AutomationId='{automation_id}'")
             search_params["AutomationId"] = automation_id
             
-        # 2. Strategy: Name (Modern/Legacy if stable)
-        # In legacy mode, we might skip Name if it looks dynamic, but for now we include it if present.
+        # 2. 戦略: Name (Modern/Legacyで安定している場合)
+        # legacyモードでは、Nameが動的に見える場合はスキップするかもしれないが、今のところ存在すれば含める。
         elif name:
-            # Escape single quotes
+            # シングルクォートをエスケープ
             safe_name = name.replace("'", "\\'")
             criteria.append(f"Name='{safe_name}'")
             search_params["Name"] = name
             
-        # 3. Strategy: ClassName (Legacy)
+        # 3. 戦略: ClassName (Legacy)
         if self.mode == "legacy" and class_name:
             criteria.append(f"ClassName='{class_name}'")
             search_params["ClassName"] = class_name
             
-        # 4. Strategy: Fallback to ClassName if nothing else
+        # 4. 戦略: 他に何もない場合はClassNameにフォールバック
         if not criteria and class_name:
             criteria.append(f"ClassName='{class_name}'")
             search_params["ClassName"] = class_name
 
-        # Calculate foundIndex relative to PARENT
-        # This is much faster than searching the whole tree.
+        # 親に相対するfoundIndexを計算
+        # これはツリー全体を検索するよりもはるかに高速。
         found_index = 1
         
         if parent:
@@ -101,16 +101,16 @@ class PathGenerator:
                 count = 0
                 found = False
                 
-                # Use WalkControl with maxDepth=1 to search ONLY direct children.
-                # This avoids traversing deep subtrees (like massive lists).
-                # Note: WalkControl(root, maxDepth=1) yields root, then children.
-                # We skip the first one (parent itself).
+                # maxDepth=1でWalkControlを使用し、直接の子ノードのみを検索。
+                # これにより、深いサブツリー（大規模なリストなど）の走査を回避。
+                # 注: WalkControl(root, maxDepth=1)はroot、その後子ノードを生成する。
+                # 最初の1つ（親自身）をスキップする。
                 
                 gen = auto.WalkControl(parent, maxDepth=1)
-                next(gen) # Skip parent
+                next(gen) # 親をスキップ
                 
                 for ctrl, depth in gen:
-                    # Check match
+                    # マッチングチェック
                     is_match = (ctrl.ControlTypeName == control_type)
                     if is_match and "AutomationId" in search_params:
                         is_match = (ctrl.AutomationId == search_params["AutomationId"])
@@ -127,21 +127,21 @@ class PathGenerator:
                             break
                 
                 if not found:
-                    # Fallback: It might not be a direct child if the hierarchy changed dynamically?
+                    # フォールバック: 階層が動的に変わった場合、直接の子ではないかもしれない？
                     pass
 
             except Exception as e:
-                # This often happens with transient elements (like menus closing).
-                # Defaulting to 1 is usually safe for these unique items.
+                # これは一時的な要素（メニューが閉じるなど）でよく発生する。
+                # デフォルトを1にするのは、これらのユニークなアイテムには無害。
                 print(f"    Warning: Index calculation skipped (defaulting to 1). Reason: {e}")
                 found_index = 1
 
-        # Construct path string
+        # パス文字列を構築
         props = criteria
         if found_index > 1 or self.mode == "legacy":
              props.append(f"foundIndex={found_index}")
         
-        # If we are chaining (parent exists), we enforce searchDepth=1
+        # チェーンしている場合（親が存在）、searchDepth=1を強制
         if parent:
             props.append("searchDepth=1")
         
