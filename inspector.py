@@ -19,6 +19,7 @@ except Exception:
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
 from automator.inspector.path_generator import PathGenerator
+from automator.inspector.click_handler import ClickHandler
 
 
 class Inspector:
@@ -27,6 +28,7 @@ class Inspector:
         self.output = output
         self.recorded_items = []
         self.path_generator = PathGenerator(mode=mode)
+        self.click_handler = ClickHandler()
         print(f"UI Inspector initialized (Mode: {mode}, Output: {output})")
 
 
@@ -117,23 +119,8 @@ class Inspector:
                 time.sleep(0.05)
 
     def wait_for_click(self):
-        """Waits for a left or right click and returns (control, x, y). Returns None if ESC is pressed."""
-        while True:
-            if keyboard.is_pressed('esc'):
-                return None
-            
-            # Check for left click (0x01) or right click (0x02)
-            if (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000) or \
-               (ctypes.windll.user32.GetAsyncKeyState(0x02) & 0x8000):
-                x, y = auto.GetCursorPos()
-                control = auto.ControlFromPoint(x, y)
-                # Wait for release to avoid multiple registrations
-                while (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000) or \
-                      (ctypes.windll.user32.GetAsyncKeyState(0x02) & 0x8000):
-                    time.sleep(0.05)
-                return control, x, y
-            
-            time.sleep(0.05)
+        """Waits for a left or right click. Delegates to ClickHandler."""
+        return self.click_handler.wait_for_click()
 
     def inspect_element(self, control, x, y):
         print(f"\n[Clicked at {x}, {y}] Inspecting...")
