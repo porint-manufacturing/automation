@@ -15,12 +15,11 @@ try:
 except Exception:
     pass
 
-# Add src to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+# Add src to path for imports (same as automator.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from automator.inspector.path_generator import PathGenerator
-from automator.inspector.click_handler import ClickHandler
-from automator.inspector.output_handler import OutputHandler
+from src.inspector.core import PathGenerator
+from src.inspector.utils import ClickHandler, OutputHandler
 
 
 class Inspector:
