@@ -65,6 +65,7 @@
 - **FocusManager** (`focus.py`)
   - ウィンドウフォーカス管理
   - 最前面化処理
+  - レガシーモード（Win32 API優先）のサポート
 
 - **Screenshot** (`screenshot.py`)
   - エラー時のスクリーンショット撮影

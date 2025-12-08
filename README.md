@@ -97,6 +97,9 @@ python automator.py actions.csv
 
 # エイリアスファイルを使用して実行
 python automator.py actions.csv --aliases aliases.csv
+
+# レガシーモード（Win32 API優先）で実行
+python automator.py actions.csv --legacy
 ```
 
 ## プロジェクト構造

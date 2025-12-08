@@ -12,14 +12,16 @@ import uiautomation as auto
 class FocusManager:
     """フォールバックメカニズムを使用してUI要素のフォーカスを管理する。"""
     
-    def __init__(self, force_run=False):
+    def __init__(self, force_run=False, legacy_mode=False):
         """
         FocusManager初期化。
         
         Args:
             force_run: Trueの場合、フォーカス失敗時でも実行を続行
+            legacy_mode: Trueの場合、Win32 API SetFocusを優先
         """
         self.force_run = force_run
+        self.legacy_mode = legacy_mode
         self.logger = logging.getLogger(__name__)
     
     def set_focus_win32(self, element):
@@ -49,6 +51,7 @@ class FocusManager:
     def set_focus_with_fallback(self, element, element_desc="element"):
         """
         UI Automationを使用してフォーカスを設定、失敗時はWin32 APIにフォールバック。
+        レガシーモードの場合は逆順。
         
         Args:
             element: UI Automation要素
@@ -57,17 +60,32 @@ class FocusManager:
         Raises:
             RuntimeError: フォーカス失敗かつforce_runがFalseの場合
         """
-        # まずUI Automation SetFocusを試行
-        try:
-            element.SetFocus()
-            self.logger.info(f"Focus set on {element_desc} using UI Automation")
-            return
-        except Exception as e:
-            self.logger.warning(f"UI Automation SetFocus failed for {element_desc}: {e}")
         
-        # Win32 APIにフォールバック
-        if self.set_focus_win32(element):
-            return
+        if self.legacy_mode:
+            # レガシーモード: Win32優先
+            if self.set_focus_win32(element):
+                return
+            
+            self.logger.warning(f"Win32 SetFocus failed for {element_desc}, falling back to UI Automation")
+            try:
+                element.SetFocus()
+                self.logger.info(f"Focus set on {element_desc} using UI Automation (Fallback)")
+                return
+            except Exception as e:
+                self.logger.warning(f"UI Automation SetFocus failed for {element_desc}: {e}")
+                
+        else:
+            # 標準モード: UI Automation優先
+            try:
+                element.SetFocus()
+                self.logger.info(f"Focus set on {element_desc} using UI Automation")
+                return
+            except Exception as e:
+                self.logger.warning(f"UI Automation SetFocus failed for {element_desc}: {e}")
+            
+            # Win32 APIにフォールバック
+            if self.set_focus_win32(element):
+                return
         
         # 両方のメソッドが失敗
         error_msg = f"Failed to set focus on {element_desc} (both UI Automation and Win32 API failed)"

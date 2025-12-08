@@ -25,7 +25,7 @@ except Exception:
     pass # サポートされていない場合は無視（例: 古いWindows）
 
 class Automator:
-    def __init__(self, action_files, log_file=None, log_level="INFO", dry_run=False, force_run=False, wait_time=None):
+    def __init__(self, action_files, log_file=None, log_level="INFO", dry_run=False, force_run=False, wait_time=None, legacy_mode=False):
         self.actions = []
         self.variables = {}
         self.aliases = {}  # エイリアス名 -> RPAパス
@@ -33,6 +33,7 @@ class Automator:
         self.dry_run = dry_run
         self.force_run = force_run
         self.wait_time = wait_time  # Noneはライブラリデフォルトを使用
+        self.legacy_mode = legacy_mode
         
         # ロギング設定
         level = getattr(logging, log_level.upper(), logging.INFO)
@@ -48,8 +49,11 @@ class Automator:
         )
         self.logger = logging.getLogger(__name__)
         
+        if self.legacy_mode:
+            self.logger.info("=== LEGACY MODE ENABLED (Prioritizing Win32 API) ===")
+
         # FocusManager初期化
-        self.focus_manager = FocusManager(force_run=force_run)
+        self.focus_manager = FocusManager(force_run=force_run, legacy_mode=legacy_mode)
         
         # ElementFinder初期化
         self.element_finder = ElementFinder(
@@ -376,10 +380,19 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no side effects).")
     parser.add_argument("--force-run", action="store_true", help="Continue execution even if errors occur.")
     parser.add_argument("--wait-time", type=float, help="Wait time (in seconds) after each action. If not specified, uses library default.")
+    parser.add_argument("--legacy", action="store_true", help="Enable legacy mode for better compatibility with Win32 applications.")
     
     args = parser.parse_args()
     
-    app = Automator(args.csv_files, log_file=args.log_file, log_level=args.log_level, dry_run=args.dry_run, force_run=args.force_run, wait_time=args.wait_time)
+    app = Automator(
+        args.csv_files, 
+        log_file=args.log_file, 
+        log_level=args.log_level, 
+        dry_run=args.dry_run, 
+        force_run=args.force_run, 
+        wait_time=args.wait_time,
+        legacy_mode=args.legacy
+    )
     
     if args.aliases:
         app.load_aliases(args.aliases)
